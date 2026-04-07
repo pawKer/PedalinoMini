@@ -1657,6 +1657,11 @@ void get_actions_page(unsigned int start, unsigned int len) {
     if (act->midiMessage == PED_ACTION_LED_COLOR) page += F(" selected");
     page += F(">Set Led Color</option>");
     page += F("<option value='");
+    page += PED_ACTION_SET_SLOT_STATE;
+    page += F("'");
+    if (act->midiMessage == PED_ACTION_SET_SLOT_STATE) page += F(" selected");
+    page += F(">Set Slot State</option>");
+    page += F("<option value='");
     page += PED_ACTION_REPEAT;
     page += F("'");
     if (act->midiMessage == PED_ACTION_REPEAT) page += F(" selected");
@@ -2325,6 +2330,22 @@ void get_actions_page(unsigned int start, unsigned int len) {
 
   if (trim_page(start, len)) return;
 
+  page += F("     case 'Set Slot State':"
+            "       document.getElementById('codeLabel'     + i).textContent = 'Slot';"
+            "       document.getElementById('fromLabel'     + i).textContent = 'State (0/1)';"
+            "       document.getElementById('toLabel'       + i).textContent = 'Unused';"
+            "       document.getElementById('channelSelect' + i).disabled = true;"
+            "       document.getElementById('toInput'       + i).disabled = true;"
+            "       document.getElementById('tagOffInput'   + i).disabled = true;"
+            "       document.getElementById('tagOnInput'    + i).disabled = true;"
+            "       document.getElementById('ledSelect'     + i).disabled = true;"
+            "       document.getElementById('color0Input'   + i).disabled = true;"
+            "       document.getElementById('color1Input'   + i).disabled = true;"
+            "       document.getElementById('slotSelect'    + i).disabled = true;"
+            "       break;");
+
+  if (trim_page(start, len)) return;
+
   page += F("     case 'Start':"
             "     case 'Stop':"
             "     case 'Continue':"
@@ -2349,6 +2370,8 @@ void get_actions_page(unsigned int start, unsigned int len) {
             "       document.getElementById('slotSelect'    + i).disabled = true;"
             "       break;"
             "   }"
+            "   if (document.getElementById('sendSelect' + i).options[document.getElementById('sendSelect' + i).selectedIndex].text != 'Set Slot State')"
+            "     document.getElementById('slotSelect'  + i).disabled = false;"
             "};");
   page += F("</script>");
 
@@ -5709,7 +5732,9 @@ void http_handle_post_actions(AsyncWebServerRequest *request) {
         act->midiValue1   = constrain(request->arg(String("from")       + String(i)).toInt(), 0, MIDI_RESOLUTION - 1);
         act->midiValue2   = constrain(request->arg(String("to")         + String(i)).toInt(), 0, MIDI_RESOLUTION - 1);
         act->midiChannel  = constrain(request->arg(String("channel")    + String(i)).toInt(), 0, 17);
-        act->slot         = constrain(request->arg(String("slot")       + String(i)).toInt() - 1, 0, SLOTS);
+        String slotArg    = String("slot") + String(i);
+        if (request->hasArg(slotArg.c_str()))
+          act->slot       = constrain(request->arg(slotArg.c_str()).toInt() - 1, 0, SLOTS);
         strlcpy(act->tag0,            request->arg(String("nameoff")    + String(i)).c_str(), MAXACTIONNAME + 1);
         strlcpy(act->tag1,            request->arg(String("nameon")     + String(i)).c_str(), MAXACTIONNAME + 1);
         strlcpy(act->oscAddress,      request->arg(String("oscaddress") + String(i)).c_str(), sizeof(act->oscAddress));
@@ -5720,6 +5745,18 @@ void http_handle_post_actions(AsyncWebServerRequest *request) {
             act->midiChannel  = constrain(request->arg(String("sequence") + String(i)).toInt(), 1, SEQUENCES);
             act->color0   = CRGB::Black;
             act->color1   = CRGB::Black;
+            break;
+          case PED_ACTION_SET_SLOT_STATE:
+            act->midiCode     = constrain(act->midiCode, 1, SLOTS);
+            act->midiValue1   = constrain(act->midiValue1, 0, 1);
+            act->midiValue2   = 0;
+            act->midiChannel  = 0;
+            act->led          = 255;
+            act->color0       = CRGB::Black;
+            act->color1       = CRGB::Black;
+            act->slot         = SLOTS;
+            act->tag0[0]      = 0;
+            act->tag1[0]      = 0;
             break;
           case PED_ACTION_BANK_PLUS:
           case PED_ACTION_BANK_MINUS:
@@ -6576,10 +6613,12 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
         }
         else {
           int b;
-          if (sscanf((const char *)data, "bank%d", &b) == 1)
+          if (sscanf((const char *)data, "bank%d", &b) == 1) {
             currentBank = constrain(b, 0, BANKS - 1);
+            reset_slot_display_state(currentBank);
             update_current_step();
             leds_refresh();
+          }
         }
       }
       /*

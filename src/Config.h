@@ -91,6 +91,7 @@ byte ActionStringToEnum (String msg)
   else if (msg.equals("Profile-"))            return PED_ACTION_PROFILE_MINUS;
 
   else if (msg.equals("Set Led Color"))       return PED_ACTION_LED_COLOR;
+  else if (msg.equals("Set Slot State"))      return PED_ACTION_SET_SLOT_STATE;
 
   else if (msg.equals("Repeat"))              return PED_ACTION_REPEAT;
   else if (msg.equals("Repeat Overwrite"))    return PED_ACTION_REPEAT_OVERWRITE;
@@ -217,6 +218,9 @@ String ActionEnumToString (byte msg)
             break;
           case PED_ACTION_LED_COLOR:
             return "Set Led Color";
+            break;
+          case PED_ACTION_SET_SLOT_STATE:
+            return "Set Slot State";
             break;
           case PED_ACTION_REPEAT:
             return "Repeat";

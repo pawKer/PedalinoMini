@@ -482,6 +482,24 @@ void topOverlay()
         top.drawString("C", 52 + TOP_HEIGHT*currentProfile + 11, 11);
         break;
     }
+
+#if defined(ARDUINO_LILYGO_T_DISPLAY_S3)
+    // Keep top status icons and profile badge, and show current bank name in the remaining top-bar area.
+    String bankLabel = banknames[currentBank][0] == 0
+                     ? String("Bank ") + (currentBank > 9 ? "" : "0") + String(currentBank)
+                     : String(banknames[currentBank]);
+    bankLabel.replace(String("##"), String(currentBank));
+    const int bankLabelLeft  = 80;
+    const int bankLabelRight = display.width() - 54;
+    const int bankLabelWidth = bankLabelRight - bankLabelLeft;
+    top.setFreeFont(&FreeSans9pt7b);
+    while (bankLabel.length() > 0 && top.textWidth(bankLabel) > bankLabelWidth) {
+      bankLabel.remove(bankLabel.length() - 1);
+    }
+    top.setTextColor(TFT_INDEX_WHITE, TFT_INDEX_BLACK);
+    top.setTextDatum(MC_DATUM);
+    top.drawString(bankLabel, bankLabelLeft + bankLabelWidth / 2, 11);
+#endif
   }
 
   if (millis() < endMillis2) {
@@ -639,6 +657,283 @@ void bottomOverlay()
 
 void drawFrame1(int16_t x, int16_t y)
 {
+#if defined(ARDUINO_LILYGO_T_DISPLAY_S3)
+  static bool overlayWasActive = false;
+  bool overlayActive = millis() < endMillis2 && lastPedalName[0] != ':';
+  if (overlayActive) {
+    overlayWasActive = true;
+    if (strlen(lastPedalName) != 0 && lastPedalName[strlen(lastPedalName) - 1] == '.') lastPedalName[strlen(lastPedalName) - 1] = 0;
+
+    // Keep the progress-bar area untouched to avoid flicker while bottomOverlay() updates it.
+    display.fillRect(0, TOP_HEIGHT, display.width(), TOP_BLANK, TFT_INDEX_BLACK);
+    TFT_eSprite sprite = TFT_eSprite(&display);
+    sprite.setColorDepth(1);
+    sprite.createSprite(display.width(), CENTER_HEIGHT);
+    sprite.setBitmapColor(TFT_WHITE, TFT_BLACK);
+    sprite.fillRect(0, 0, sprite.width(), sprite.height(), TFT_BLACK);
+
+    if (lastPedalName[0] == 0) {
+      switch (m1) {
+        case midi::InvalidType:
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("Bank", sprite.width() / 2 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(m2), sprite.width() / 2 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          sprite.drawRoundRect(sprite.width() / 2 - sprite.width() * 2 / 10, 0, sprite.width() * 4 / 10, sprite.height() * 9 / 10 - 24, 8, TFT_WHITE);
+          break;
+        case midi::NoteOn:
+        case midi::NoteOff:
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("Note", sprite.width() / 2 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(m2), sprite.width() / 2 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          sprite.drawRoundRect(sprite.width() / 2 - sprite.width() * 2 / 10, 0, sprite.width() * 4 / 10, sprite.height() * 9 / 10 - 24, 8, TFT_WHITE);
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("Velocity", sprite.width() * 17 / 20 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans18pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(m3), sprite.width() * 17 / 20 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          break;
+        case midi::ControlChange:
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("CC", sprite.width() / 2 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(m2), sprite.width() / 2 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          sprite.drawRoundRect(sprite.width() / 2 - sprite.width() * 2 / 10, 0, sprite.width() * 4 / 10, sprite.height() * 9 / 10 - 24, 8, TFT_WHITE);
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("Value", sprite.width() * 17 / 20 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans18pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(m3), sprite.width() * 17 / 20 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          break;
+        case midi::ProgramChange:
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("PC", sprite.width() / 2 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(m2), sprite.width() / 2 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          sprite.drawRoundRect(sprite.width() / 2 - sprite.width() * 2 / 10, 0, sprite.width() * 4 / 10, sprite.height() * 9 / 10 - 24, 8, TFT_WHITE);
+          break;
+        case midi::PitchBend:
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("Pitch", sprite.width() / 2 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(((m3 << 7) | m2) + MIDI_PITCHBEND_MIN), sprite.width() / 2 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          sprite.drawRoundRect(sprite.width() / 2 - sprite.width() / 4, 0, sprite.width() / 2, sprite.height() * 9 / 10 - 24, 8, TFT_WHITE);
+          break;
+        case midi::AfterTouchChannel:
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.setTextDatum(BC_DATUM);
+          sprite.drawString("Pressure", sprite.width() / 2 + x, sprite.height() * 9 / 10 + y);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString(String(m2), sprite.width() / 2 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+          sprite.drawRoundRect(sprite.width() / 2 - sprite.width() * 2 / 10, 0, sprite.width() * 4 / 10, sprite.height() * 9 / 10 - 24, 8, TFT_WHITE);
+          break;
+        case midi::Start:
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString("Start", sprite.width() / 2 + x, sprite.height() / 2 + y);
+          break;
+        case midi::Stop:
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString("Stop", sprite.width() / 2 + x, sprite.height() / 2 + y);
+          break;
+        case midi::Continue:
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.setTextDatum(MC_DATUM);
+          sprite.drawString("Continue", sprite.width() / 2 + x, sprite.height() / 2 + y);
+          break;
+      }
+      if ((m1 != midi::InvalidType) && (m1 != midi::Start) && (m1 != midi::Stop) && (m1 != midi::Continue)) {
+        sprite.setFreeFont(&FreeSans9pt7b);
+        sprite.setTextDatum(BC_DATUM);
+        sprite.drawString("Channel", sprite.width() * 3 / 20 + x, sprite.height() * 9 / 10 + y);
+        sprite.setFreeFont(&FreeSans18pt7b);
+        sprite.setTextDatum(MC_DATUM);
+        sprite.drawString(String(m4), sprite.width() * 3 / 20 + x, (sprite.height() * 9 / 10 - 24) / 2 + y);
+      }
+    } else {
+      String name = lastPedalName;
+      switch (m1) {
+        case midi::InvalidType:
+          sprite.drawRect(64 - 22, 15, 64 + 24, 15 + 23, TFT_WHITE);
+          sprite.setTextDatum(TC_DATUM);
+          sprite.setFreeFont(&FreeSans9pt7b);
+          sprite.drawString("Bank", 64, 39);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.drawString(String(m2), 64, 14);
+          break;
+        case midi::NoteOn:
+        case midi::NoteOff:
+        case midi::ControlChange:
+          name.replace(String("###"), String(m3));
+        case midi::ProgramChange:
+        case midi::AfterTouchChannel:
+          name.replace(String("###"), String(m2));
+        default:
+          sprite.setTextDatum(MC_DATUM);
+          sprite.setFreeFont(&FreeSans24pt7b);
+          sprite.drawString(name, sprite.width() / 2, sprite.height() / 2);
+          break;
+      }
+    }
+
+    sprite.pushSprite(0, TOP_HEIGHT + TOP_BLANK);
+    sprite.deleteSprite();
+  } else {
+    action* slotActions[SLOTS] = {};
+    byte slotActionScore[SLOTS] = {};
+    action* act = actions[currentBank];
+    while (act != nullptr) {
+      if (act->midiMessage != PED_ACTION_SET_SLOT_STATE && act->slot < SLOTS) {
+        byte score = 0;
+        if (act->tag0[0] != 0 && act->tag1[0] != 0) {
+          score = 3;  // best candidate for ON/OFF visual label
+        } else if (act->tag0[0] != 0 || act->tag1[0] != 0) {
+          score = 2;  // at least one display tag available
+        } else if (act->name[0] != 0) {
+          score = 1;  // fallback to action name
+        }
+        if (slotActions[act->slot] == nullptr || score > slotActionScore[act->slot]) {
+          slotActions[act->slot] = act;
+          slotActionScore[act->slot] = score;
+        }
+      }
+      act = act->next;
+    }
+
+    String cellLine1[SLOTS];
+    String cellLine2[SLOTS];
+    bool   cellActive[SLOTS] = {};
+    const int maxCharsPerLine = 8;
+
+    for (byte s = 0; s < SLOTS; s++) {
+      action* a = slotActions[s];
+      String label = "";
+      bool active = slotDisplayInitialized[currentBank][s] ? slotDisplayState[currentBank][s] : false;
+      int value = 0;
+      bool hasValue = false;
+
+      if (a != nullptr) {
+        if (a->control < CONTROLS) {
+          const byte pedal  = controls[a->control].pedal1;
+          const byte button = controls[a->control].button1;
+          if (pedal < PEDALS && button < LADDER_STEPS) {
+            value = currentMIDIValue[currentBank][pedal][button];
+            hasValue = true;
+          }
+        }
+
+        if (a->tag0[0] != 0 && a->tag1[0] != 0) {
+          label = active ? String(a->tag1) : String(a->tag0);
+        } else {
+          label = a->tag0[0] ? String(a->tag0) : String(a->name);
+        }
+      }
+
+      if (hasValue) label.replace(String("###"), String(value));
+      label.replace(String("\n"), String(" "));
+      label.trim();
+
+      String line1 = "";
+      String line2 = "";
+      if (label.length() <= maxCharsPerLine) {
+        line1 = label;
+      } else {
+        line1 = label.substring(0, maxCharsPerLine);
+        line2 = label.substring(maxCharsPerLine);
+        if (line2.length() > maxCharsPerLine) {
+          line2 = line2.substring(0, _max(0, maxCharsPerLine - 3)) + "...";
+        }
+      }
+
+      cellLine1[s] = line1;
+      cellLine2[s] = line2;
+      cellActive[s] = active;
+    }
+
+    static bool   gridCacheInit = false;
+    static byte   lastBank = 0xFF;
+    static String lastLine1[SLOTS];
+    static String lastLine2[SLOTS];
+    static bool   lastActive[SLOTS] = {};
+    bool changed = !gridCacheInit || displayInit || (lastBank != currentBank) || overlayWasActive;
+    for (byte s = 0; s < SLOTS; s++) {
+      if (lastActive[s] != cellActive[s] || lastLine1[s] != cellLine1[s] || lastLine2[s] != cellLine2[s]) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+
+    overlayWasActive = false;
+    gridCacheInit = true;
+    lastBank = currentBank;
+    for (byte s = 0; s < SLOTS; s++) {
+      lastActive[s] = cellActive[s];
+      lastLine1[s] = cellLine1[s];
+      lastLine2[s] = cellLine2[s];
+    }
+
+    TFT_eSprite sprite = TFT_eSprite(&display);
+    sprite.setColorDepth(1);
+    sprite.createSprite(display.width(), display.height() - TOP_HEIGHT);
+    sprite.setBitmapColor(TFT_WHITE, TFT_BLACK);
+    sprite.fillRect(0, 0, sprite.width(), sprite.height(), TFT_BLACK);
+    sprite.setFreeFont(&FreeSans12pt7b);
+    sprite.setTextDatum(MC_DATUM);
+
+    const int cols = 3;
+    const int rows = 2;
+    const int cellW = sprite.width() / cols;
+    const int cellH = sprite.height() / rows;
+
+    for (byte s = 0; s < SLOTS; s++) {
+      const int col = s % cols;
+      const int row = s / cols;
+      const int sx = col * cellW;
+      const int sy = row * cellH;
+      const int sw = (col == cols - 1) ? sprite.width() - sx : cellW;
+      const int sh = (row == rows - 1) ? sprite.height() - sy : cellH;
+
+      String line1 = cellLine1[s];
+      String line2 = cellLine2[s];
+      while (line1.length() > 0 && sprite.textWidth(line1) > (sw - 10)) line1.remove(line1.length() - 1);
+      while (line2.length() > 0 && sprite.textWidth(line2) > (sw - 10)) line2.remove(line2.length() - 1);
+
+      if (cellActive[s]) {
+        sprite.fillRoundRect(sx + 2, sy + 2, sw - 4, sh - 4, 6, 1);
+        sprite.setTextColor(TFT_INDEX_BLACK, TFT_INDEX_WHITE);
+      } else {
+        sprite.setTextColor(TFT_INDEX_WHITE, TFT_INDEX_BLACK);
+      }
+
+      sprite.drawRoundRect(sx, sy, sw - 1, sh - 1, 6, 1);
+      if (line2.length() > 0) {
+        sprite.drawString(line1, sx + sw / 2 + x, sy + sh / 2 - 10 + y);
+        sprite.drawString(line2, sx + sw / 2 + x, sy + sh / 2 + 12 + y);
+      } else {
+        sprite.drawString(line1, sx + sw / 2 + x, sy + sh / 2 + y);
+      }
+    }
+
+    sprite.pushSprite(0, TOP_HEIGHT);
+    sprite.deleteSprite();
+  }
+#else
   if (millis() < endMillis2 && lastPedalName[0] != ':') {
     if (strlen(lastPedalName) != 0 && lastPedalName[strlen(lastPedalName) - 1] == '.') lastPedalName[strlen(lastPedalName) - 1] = 0;
     if (lastPedalName[0] == 0) {
@@ -1257,6 +1552,7 @@ void drawFrame1(int16_t x, int16_t y)
       }
     }
   }
+#endif
 
 #ifdef WEBSOCKET
   events.send(MTC.isPlaying() ? "1" : "0", "play");

@@ -223,6 +223,7 @@ using namespace ace_button;
 #define PED_ACTION_MTC_SLAVE          44
 #define PED_ACTION_MTC_OFF            45
 #define PED_ACTION_MTC_TIME_SIGNATURE 46
+#define PED_ACTION_SET_SLOT_STATE     47
 #define PED_OSC_MESSAGE               50
 #define PED_ACTION_SCAN               98
 #define PED_ACTION_POWER_ON_OFF       99
@@ -468,6 +469,8 @@ uint16_t        ladderLevels[LADDER_STEPS+1] = {497, 660, 752, 816, 876, 945, AD
 bool ads1115Found[ADC_BOARDS];
 
 char  slots[SLOTS_ROWS][SLOTS_COLS][MAXBANKNAME+1];
+bool  slotDisplayState[BANKS][SLOTS];
+bool  slotDisplayInitialized[BANKS][SLOTS];
 
 bool  tapDanceMode            = false;
 bool  repeatOnBankSwitch      = false;

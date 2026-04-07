@@ -25,6 +25,46 @@ std::list<event>   backlog;
 
 void refresh_analog(byte, bool);
 
+inline void reset_slot_display_state(byte bank)
+{
+  if (bank >= BANKS) return;
+  memset(slotDisplayState[bank], 0, sizeof(slotDisplayState[bank]));
+  memset(slotDisplayInitialized[bank], 0, sizeof(slotDisplayInitialized[bank]));
+}
+
+inline void reset_slot_display_state_all()
+{
+  memset(slotDisplayState, 0, sizeof(slotDisplayState));
+  memset(slotDisplayInitialized, 0, sizeof(slotDisplayInitialized));
+}
+
+inline void set_slot_display_state(byte bank, byte slot, bool state)
+{
+  if (bank >= BANKS || slot >= SLOTS) return;
+  slotDisplayState[bank][slot] = state;
+  slotDisplayInitialized[bank][slot] = true;
+}
+
+inline void set_slot_display_state_from_tags(action* act)
+{
+  if (act == nullptr || act->slot >= SLOTS) return;
+  if (act->tag0[0] == 0 || act->tag1[0] == 0) return;
+
+  if (strcmp(lastPedalName, act->tag1) == 0) {
+    set_slot_display_state(currentBank, act->slot, true);
+  } else if (strcmp(lastPedalName, act->tag0) == 0) {
+    set_slot_display_state(currentBank, act->slot, false);
+  }
+}
+
+inline void set_last_pedal_name_label(const char* label, bool overwrite = false)
+{
+  if (label == nullptr || label[0] == 0) return;
+  if (overwrite || lastPedalName[0] == 0) {
+    strlcpy(lastPedalName, label, MAXACTIONNAME + 1);
+  }
+}
+
 unsigned int map_analog(byte p, unsigned int value)
 {
   p = constrain(p, 0, PEDALS - 1);
@@ -282,6 +322,7 @@ void sort_actions()
           t.led                  = idx->led;
           t.color0               = idx->color0;
           t.color1               = idx->color1;
+          t.slot                 = idx->slot;
           strlcpy(idx->oscAddress, act->oscAddress, sizeof(idx->oscAddress));
           strlcpy(idx->tag0,       act->tag0, MAXACTIONNAME + 1);
           strlcpy(idx->tag1,       act->tag1, MAXACTIONNAME + 1);
@@ -295,6 +336,7 @@ void sort_actions()
           idx->led               = act->led;
           idx->color0            = act->color0;
           idx->color1            = act->color1;
+          idx->slot              = act->slot;
           strlcpy(act->oscAddress, t.oscAddress, sizeof(t.oscAddress));
           strlcpy(act->tag0,       t.tag0, MAXACTIONNAME + 1);
           strlcpy(act->tag1,       t.tag1, MAXACTIONNAME + 1);
@@ -308,6 +350,7 @@ void sort_actions()
           act->led               = t.led;
           act->color0            = t.color0;
           act->color1            = t.color1;
+          act->slot              = t.slot;
         }
         idx = idx->next;
       }
@@ -516,6 +559,7 @@ void switch_profile_or_bank(byte channel, byte number, byte value) {
   }
   if (channel == 16 && number == midi::BankSelect+32 && value >= 0 && value <= BANKS) {
     currentBank = value;
+    reset_slot_display_state(currentBank);
     update_current_step();
     leds_refresh();
     DPRINT("BANK.....%d\n", currentBank);
@@ -1014,6 +1058,7 @@ void midi_send(byte message, byte code, byte value, byte channel, bool on_off, b
 
     case PED_ACTION_BANK:                                           // only for Sequences
       currentBank = constrain(value, 0, BANKS - 1);
+      reset_slot_display_state(currentBank);
       update_current_step();
       if (repeatOnBankSwitch)
         midi_send(lastMIDIMessage[currentBank].midiMessage,
@@ -1081,7 +1126,7 @@ void fire_action(action* act, byte p, byte i, byte e)
           lastUsedPedal = p;
           lastUsed = p;
           lastSlot = act->slot;
-          strlcpy(lastPedalName, act->name, MAXACTIONNAME+1);
+          set_last_pedal_name_label(act->name);
           DPRINT("Action %s....", act->name);
           switch (act->midiMessage) {
             case PED_EMPTY:
@@ -1133,9 +1178,9 @@ void fire_action(action* act, byte p, byte i, byte e)
                 }
               }
               if (act->midiCode % 2)
-                strlcpy(lastPedalName, act->tag0, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag0, true);
               else
-                strlcpy(lastPedalName, act->tag1, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag1, true);
               break;
 
             case PED_PROGRAM_CHANGE:
@@ -1145,12 +1190,12 @@ void fire_action(action* act, byte p, byte i, byte e)
                     lastProgramChange[act->midiChannel] = act->midiValue2;
                     midi_send(act->midiMessage, act->midiValue2, act->midiValue1, act->midiChannel, true, act->midiValue1, act->midiValue2, currentBank, p, i);
                     leds_update(e, act);
-                    strlcpy(lastPedalName, act->tag1, MAXACTIONNAME+1);
+                    set_last_pedal_name_label(act->tag1, true);
                   } else {
                     lastProgramChange[act->midiChannel] = act->midiCode;
                     midi_send(act->midiMessage, act->midiCode, act->midiValue1, act->midiChannel, true, act->midiValue1, act->midiValue2, currentBank, p, i);
                     leds_update(e, act);
-                    strlcpy(lastPedalName, act->tag1, MAXACTIONNAME+1);
+                    set_last_pedal_name_label(act->tag1, true);
                   }
                   break;
                 case PED_EVENT_RELEASE:
@@ -1158,19 +1203,19 @@ void fire_action(action* act, byte p, byte i, byte e)
                     lastProgramChange[act->midiChannel] = act->midiValue1;
                     midi_send(act->midiMessage, act->midiValue1, act->midiValue2, act->midiChannel, true, act->midiValue1, act->midiValue2, currentBank, p, i);
                     leds_update(e, act);
-                    strlcpy(lastPedalName, act->tag0, MAXACTIONNAME+1);
+                    set_last_pedal_name_label(act->tag0, true);
                   } else {
                     lastProgramChange[act->midiChannel] = act->midiCode;
                     midi_send(act->midiMessage, act->midiCode, act->midiValue1, act->midiChannel, true, act->midiValue1, act->midiValue2, currentBank, p, i);
                     leds_update(e, act);
-                    strlcpy(lastPedalName, act->tag0, MAXACTIONNAME+1);
+                    set_last_pedal_name_label(act->tag0, true);
                   }
                   break;
                 default:
                   lastProgramChange[act->midiChannel] = act->midiCode;
                   midi_send(act->midiMessage, act->midiCode, act->midiValue1, act->midiChannel, true, act->midiValue1, act->midiValue2, currentBank, p, i);
                   leds_update(e, act);
-                  strlcpy(lastPedalName, act->tag1, MAXACTIONNAME+1);
+                  set_last_pedal_name_label(act->tag1, true);
                   break;
               }
               break;
@@ -1182,12 +1227,12 @@ void fire_action(action* act, byte p, byte i, byte e)
               if (e == PED_EVENT_RELEASE) {
                 midi_send(act->midiMessage, act->midiCode, act->midiValue1, act->midiChannel, true, 0, MIDI_RESOLUTION - 1, currentBank, p, i);
                 leds_update(e, act);
-                strlcpy(lastPedalName, act->tag0, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag0, true);
               }
               else {
                 midi_send(act->midiMessage, act->midiCode, act->midiValue2, act->midiChannel, true, 0, MIDI_RESOLUTION - 1, currentBank, p, i);
                 leds_update(e, act);
-                strlcpy(lastPedalName, act->tag1, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag1, true);
               }
               break;
 
@@ -1196,12 +1241,12 @@ void fire_action(action* act, byte p, byte i, byte e)
               if (e == PED_EVENT_RELEASE) {
                 midi_send(act->midiMessage, act->midiCode, act->midiValue1, act->midiChannel, true, act->midiValue1, act->midiValue2, currentBank, p, i);
                 leds_update(e, act);
-                strlcpy(lastPedalName, act->tag0, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag0, true);
               }
               else {
                 midi_send(act->midiMessage, act->midiCode, act->midiValue2, act->midiChannel, true, act->midiValue1, act->midiValue2, currentBank, p, i);
                 leds_update(e, act);
-                strlcpy(lastPedalName, act->tag1, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag1, true);
               }
               break;
 
@@ -1231,6 +1276,7 @@ void fire_action(action* act, byte p, byte i, byte e)
               currentBank = constrain((currentBank == constrain(act->midiValue2, 0, BANKS - 1)) ? act->midiValue1 : (currentBank + 1), 0, BANKS - 1);
               currentBank = constrain(currentBank, constrain(act->midiValue1, 0, BANKS - 1), constrain(act->midiValue2, 0, BANKS - 1));
               currentBank = constrain(currentBank, 0, BANKS - 1);
+              reset_slot_display_state(currentBank);
               update_current_step();
               if (repeatOnBankSwitch)
                 midi_send(lastMIDIMessage[currentBank].midiMessage,
@@ -1248,6 +1294,7 @@ void fire_action(action* act, byte p, byte i, byte e)
               currentBank = constrain((currentBank == act->midiValue1) ? act->midiValue2 : (currentBank - 1), 0, BANKS - 1);
               currentBank = constrain(currentBank, constrain(act->midiValue1, 0, BANKS - 1), constrain(act->midiValue2, 0, BANKS - 1));
               currentBank = constrain(currentBank, 0, BANKS - 1);
+              reset_slot_display_state(currentBank);
               update_current_step();
               if (repeatOnBankSwitch)
                 midi_send(lastMIDIMessage[currentBank].midiMessage,
@@ -1346,7 +1393,7 @@ void fire_action(action* act, byte p, byte i, byte e)
                   OSCSendMessage(act->oscAddress, act->midiValue2);
                 DPRINT("OSC MESSAGE.....%s %d\n", act->oscAddress, act->midiValue2);
                 currentMIDIValue[currentBank][p][i] = act->midiValue2;
-                strlcpy(lastPedalName, act->tag1, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag1, true);
               }
               else {
                  if (act->midiValue1 == act->midiValue2)
@@ -1355,7 +1402,7 @@ void fire_action(action* act, byte p, byte i, byte e)
                   OSCSendMessage(act->oscAddress, act->midiValue1);
                 DPRINT("OSC MESSAGE.....%s %d\n", act->oscAddress, act->midiValue1);
                 currentMIDIValue[currentBank][p][i] = act->midiValue1;
-                strlcpy(lastPedalName, act->tag0, MAXACTIONNAME+1);
+                set_last_pedal_name_label(act->tag0, true);
               }
               break;
 
@@ -1381,6 +1428,12 @@ void fire_action(action* act, byte p, byte i, byte e)
               FastLED.show();
               lastLedColor[currentBank][led_control(act->control, act->led)] = fastleds[led_control(act->control, act->led)];
             break;
+
+            case PED_ACTION_SET_SLOT_STATE:
+              set_slot_display_state(currentBank,
+                                     constrain(act->midiCode, 1, SLOTS) - 1,
+                                     constrain(act->midiValue1, 0, 1) == 1);
+              break;
 
             case PED_ACTION_SCAN:
               scannerActivated = !scannerActivated;
@@ -1419,6 +1472,7 @@ void fire_action(action* act, byte p, byte i, byte e)
 
           switch (act->midiMessage) {
             case PED_ACTION_LED_COLOR:
+            case PED_ACTION_SET_SLOT_STATE:
             case PED_ACTION_BANK_PLUS:
             case PED_ACTION_BANK_MINUS:
             case PED_ACTION_PROFILE_PLUS:
@@ -1456,6 +1510,7 @@ void fire_action(action* act, byte p, byte i, byte e)
               lastLedColor[currentBank][led_control(act->control, act->led)] = fastleds[led_control(act->control, act->led)];
               break;
           }
+          set_slot_display_state_from_tags(act);
           lastColor0 = act->color0;
           lastColor1 = act->color1;
 }
@@ -1466,6 +1521,7 @@ void process_backlog()
 
   for (std::list<event>::iterator e = backlog.begin(); e != backlog.end(); ++e) {
     if (!e->simultaneous || (now - e->timestamp) > PED_SIMULTANEOUS_GAP) {
+      bool labelReset = false;
       bool    global = actions[0] != nullptr;
       action* act    = actions[0] == nullptr ? actions[currentBank] : actions[0];
       while (act != nullptr) {
@@ -1477,6 +1533,10 @@ void process_backlog()
             ((act->event == e->event) ||                                                                                                // Events match or
              (act->event == PED_EVENT_PRESS_RELEASE) && ((e->event == PED_EVENT_PRESS) || (e->event == PED_EVENT_RELEASE))              // PRESS_RELEASE matches with PRESS or RELEASE
             )) {
+          if (!labelReset) {
+            memset(lastPedalName, 0, MAXACTIONNAME + 1);
+            labelReset = true;
+          }
           fire_action(act, e->pedal, e->button, e->event);
         }
         act = act->next;
@@ -1491,6 +1551,7 @@ void process_backlog()
       for (std::list<event>::iterator f = backlog.begin(); f != backlog.end(); ++f) {
         if (e->processed || f->processed || f == e) continue;
         if ((e->timestamp - f->timestamp) <= PED_SIMULTANEOUS_GAP) {
+          bool labelReset = false;
           bool    global = actions[0] != nullptr;
           action* act    = actions[0] == nullptr ? actions[currentBank] : actions[0];
           while (act != nullptr) {
@@ -1510,6 +1571,10 @@ void process_backlog()
                  (e->event == f->event)
                 )
                ) {
+              if (!labelReset) {
+                memset(lastPedalName, 0, MAXACTIONNAME + 1);
+                labelReset = true;
+              }
               fire_action(act, e->pedal, e->button, e->event);
               e->processed = true;
               f->processed = true;
@@ -1645,8 +1710,13 @@ void controller_event_handler_analog(byte pedal, byte button, int value)
 {
       bool    global = actions[0] != nullptr;
       action *act    = actions[0] == nullptr ? actions[currentBank] : actions[0];
+      bool labelReset = false;
       while (act != nullptr) {
         if (controls[act->control].pedal1 == pedal && controls[act->control].button1 == button && (act->event == PED_EVENT_MOVE || act->event == PED_EVENT_SHOT)) {
+          if (!labelReset) {
+            memset(lastPedalName, 0, MAXACTIONNAME + 1);
+            labelReset = true;
+          }
           if (act->midiMessage == PED_ACTION_REPEAT) {
             value = map2(value,                                      // map from [0, ADC_RESOLUTION-1] to [0, 127] MIDI value
                       0,
@@ -1668,7 +1738,7 @@ void controller_event_handler_analog(byte pedal, byte button, int value)
           lastSlot = act->slot;
           if (act->midiMessage != PED_EMPTY ||
               act->midiMessage != PED_ACTION_REPEAT ||
-              act->midiMessage != PED_ACTION_REPEAT_OVERWRITE) strlcpy(lastPedalName, act->name, MAXACTIONNAME+1);
+              act->midiMessage != PED_ACTION_REPEAT_OVERWRITE) set_last_pedal_name_label(act->name);
           DPRINT("Action: %s\n", act->name);
           switch (act->midiMessage) {
             case PED_ACTION_REPEAT:
@@ -1724,6 +1794,7 @@ void controller_event_handler_analog(byte pedal, byte button, int value)
             case PED_ACTION_BANK_MINUS:
               currentBank = map2(value, 0, MIDI_RESOLUTION - 1, constrain(act->midiValue1 - 1, 0, BANKS - 1), constrain(act->midiValue2 - 1, 0, BANKS - 1));
               currentBank = constrain(currentBank, 0, BANKS - 1);
+              reset_slot_display_state(currentBank);
               update_current_step();
               if (repeatOnBankSwitch)
                 midi_send(lastMIDIMessage[currentBank].midiMessage,
@@ -2162,7 +2233,7 @@ void controller_run(bool send = true)
                     lastUsedPedal = i;
                     lastUsed = i;
                     lastSlot = act->slot;
-                    strlcpy(lastPedalName, act->name, MAXACTIONNAME+1);
+                    set_last_pedal_name_label(act->name, true);
                     break;
 
                   case PED_ACTION_BANK_PLUS:
@@ -2171,6 +2242,7 @@ void controller_run(bool send = true)
                       int b = currentBank + ((direction == DIR_CW) ? 1 : -1) * (pedals[i].invertPolarity ? -1 : 1);
                       b = constrain(b, constrain(act->midiValue1, 0, BANKS - 1), constrain(act->midiValue2, 0, BANKS - 1));
                       currentBank = constrain(b, 0, BANKS - 1);
+                      reset_slot_display_state(currentBank);
                       update_current_step();
                       leds_refresh();
                       break;
@@ -2231,6 +2303,8 @@ void controller_setup()
   lastUsedPedal  = 0xFF;
   lastUsed       = 0xFF;
   lastSlot       = SLOTS;
+  reset_slot_display_state_all();
+  reset_slot_display_state(currentBank);
   memset(lastPedalName, 0, MAXACTIONNAME+1);
 
   controller_delete();
