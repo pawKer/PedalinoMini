@@ -445,6 +445,13 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
   }
 
   if (saveSequences) {
+    JsonArray jsequenceNames = jdoc["SequenceNames"].to<JsonArray>();
+    for (byte s = 0; s < SEQUENCES; s++) {
+      JsonObject jo = jsequenceNames.add<JsonObject>();
+      jo["Sequence"] = s + 1;
+      jo["Name"]     = sequenceNames[s];
+    }
+
     JsonArray jsequences = jdoc["Sequences"].to<JsonArray>();
     for (byte s = 0; s < SEQUENCES; s++) {
       for (byte t = 0; t < STEPS; t++) {
@@ -567,6 +574,9 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
   JsonObject jro = jdoc.as<JsonObject>();
   if (loadControls) {
     for (byte s = 0; s < SLOTS; s++) slotBorderColor[s] = 0xFFFFFF;
+  }
+  if (loadSequences) {
+    for (byte s = 0; s < SEQUENCES; s++) sequenceNames[s][0] = '\0';
   }
   // Loop through all the key-value pairs in obj
   for (JsonPair jp : jro) {
@@ -795,6 +805,17 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
           interfaces[i].midiClock     = (jo["Clock"] ? PED_ENABLE : PED_DISABLE);
           interfaces[i].midiIn        += (jo["ShowIncoming"]  ? PED_SHOW : 0);
           interfaces[i].midiOut       += (jo["ShowOutcoming"] ? PED_SHOW : 0);
+        }
+      }
+    }
+    else if (loadSequences && String(jp.key().c_str()) == String("SequenceNames")) {
+      if (jp.value().is<JsonArray>()) {
+        JsonArray ja = jp.value();
+        for (JsonObject jo : ja) {
+          int s = jo["Sequence"];
+          s--;
+          s = constrain(s, 0, SEQUENCES - 1);
+          strlcpy(sequenceNames[s], jo["Name"] | "", MAXSEQUENCENAME + 1);
         }
       }
     }
@@ -1227,6 +1248,7 @@ void load_factory_default()
   interfaces[PED_DINMIDI].midiIn = PED_DISABLE;
 
   for (byte s = 0; s < SEQUENCES; s++) {
+    sequenceNames[s][0] = '\0';
     for (byte t = 0; t < STEPS; t++) {
       sequences[s][t].midiMessage  = PED_EMPTY;
       sequences[s][t].midiChannel  = 1;
@@ -1600,6 +1622,7 @@ void eeprom_update_profile(byte profile = currentProfile)
   preferences.putBytes("BankNames",   &banknames,   sizeof(banknames));
   preferences.putBytes("Interfaces",  &interfaces,  sizeof(interfaces));
   preferences.putBytes("Sequences",   &sequences,   sizeof(sequences));
+  preferences.putBytes("SeqNames",    &sequenceNames, sizeof(sequenceNames));
   preferences.putUChar("Current Bank", currentBank);
   preferences.putUChar("Current MTC", currentMidiTimeCode);
 
@@ -1782,6 +1805,10 @@ void eeprom_read_profile(byte profile = currentProfile)
   preferences.getBytes("BankNames",   &banknames,   sizeof(banknames));
   preferences.getBytes("Interfaces",  &interfaces,  sizeof(interfaces));
   preferences.getBytes("Sequences",   &sequences,   sizeof(sequences));
+  for (byte i = 0; i < SEQUENCES; i++) sequenceNames[i][0] = '\0';
+  int sequenceNameBytes = preferences.getBytes("SeqNames", &sequenceNames, sizeof(sequenceNames));
+  if (sequenceNameBytes != sizeof(sequenceNames))
+    DPRINT("Sequence names not found in profile, using defaults\n");
   currentBank         = preferences.getUChar("Current Bank");
   currentMidiTimeCode = preferences.getUChar("Current MTC");
 

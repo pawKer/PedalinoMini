@@ -101,6 +101,16 @@ bool trim_page(unsigned int start, unsigned int len, bool lastcall = false) {
   return false;
 }
 
+String sequence_label(unsigned int sequence) {
+  String label = String(sequence);
+  if (sequence < 1 || sequence > SEQUENCES) return label;
+  if (sequenceNames[sequence - 1][0] == '\0') return label;
+  label += " (";
+  label += sequenceNames[sequence - 1];
+  label += ")";
+  return label;
+}
+
 
 bool get_top_page(int p, unsigned int start, unsigned int len) {
 
@@ -1757,7 +1767,7 @@ void get_actions_page(unsigned int start, unsigned int len) {
       page += F("'");
       if (act->midiChannel == c) page += F(" selected");
       page += F(">");
-      page += c;
+      page += sequence_label(c);
       page += F("</option>");
       if (trim_page(start, len)) return;
     }
@@ -3466,7 +3476,7 @@ void get_sequences_page(unsigned int start, unsigned int len) {
     page += F("' name='sequence' value='");
     page += i;
     page += F("'>");
-    page += i;
+    page += sequence_label(i);
     page += F("</button></form>");
   }
   page += F("</div>");
@@ -3487,7 +3497,25 @@ void get_sequences_page(unsigned int start, unsigned int len) {
   page += F("</svg>");
   page += F(" Sequence ");
   page += s;
+  if (sequenceNames[s-1][0] != '\0') {
+    page += F(" (");
+    page += sequenceNames[s-1];
+    page += F(")");
+  }
   page += F("</h5>");
+  page += F("</div>");
+
+  if (trim_page(start, len)) return;
+
+  page += F("<div class='col-auto me-2'>");
+  page += F("<div class='form-floating'>");
+  page += F("<input type='text' class='form-control form-control-sm' id='sequenceNameInput' name='sequencename' maxlength='");
+  page += MAXSEQUENCENAME;
+  page += F("' value='");
+  page += sequenceNames[s-1];
+  page += F("'>");
+  page += F("<label for='sequenceNameInput'>Sequence Name</label>");
+  page += F("</div>");
   page += F("</div>");
 
   if (trim_page(start, len)) return;
@@ -3684,7 +3712,7 @@ void get_sequences_page(unsigned int start, unsigned int len) {
       page += F("'");
       if (sequences[s-1][i-1].midiChannel == c - 1) page += F(" selected");
       page += F(">");
-      page += c;
+      page += sequence_label(c);
       page += F("</option>");
       if (trim_page(start, len)) return;
     }
@@ -6132,6 +6160,8 @@ void http_handle_post_sequences(AsyncWebServerRequest *request) {
   String     a;
   const byte s = constrain(uisequence.toInt() - 1, 0, SEQUENCES - 1);
   unsigned int red, green, blue;
+
+  strlcpy(sequenceNames[s], request->arg("sequencename").c_str(), MAXSEQUENCENAME + 1);
 
   for (unsigned int i = 0; i < STEPS; i++) {
 

@@ -39,6 +39,7 @@ __________           .___      .__  .__                 _____  .__       .__    
 
 #define MAXACTIONNAME    16
 #define MAXBANKNAME      16
+#define MAXSEQUENCENAME  16
 
 // https://randomnerdtutorials.com/esp32-pinout-reference-gpios/
 // GPIOs 34 to 39 are GPIs – input only pins.
@@ -445,6 +446,7 @@ pedal     pedals[PEDALS];                         // Pedals Setup
 control   controls[CONTROLS];                     // Controls Setup
 uint32_t  slotBorderColor[SLOTS];                 // Per-slot UI border color (0xRRGGBB)
 message   sequences[SEQUENCES][STEPS];            // Sequences Setup
+char      sequenceNames[SEQUENCES][MAXSEQUENCENAME+1];
 byte      currentMIDIValue[BANKS][PEDALS][LADDER_STEPS];
 message   lastMIDIMessage[BANKS];
 CRGB      lastColor0;

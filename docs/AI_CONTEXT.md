@@ -75,6 +75,8 @@ Defined mostly in `src/Pedalino.h`:
 - When adding new action/event types, update all four surfaces above.
 - Be careful with board-specific pin definitions and strapping pins (ESP32/ESP32-S3 boot constraints).
 - Preserve existing memory-conscious patterns (chunked web page building, PSRAM-aware JSON allocation).
+- After implementing any feature or behavior change, always update `docs/RELEASE-NOTES.md` in the same work session.
+  - Include: affected commits (or `Unreleased` when not committed yet), user-visible changes, compatibility notes, and validation/build status.
 
 ## Hardware Context (Current User Setup)
 - User-relevant setup: LilyGO T-Display S3 with 6 momentary footswitches.
