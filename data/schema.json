@@ -267,6 +267,7 @@
                                 "Profile+",
                                 "Profile-",
                                 "Set Led Color",
+                                "Set Slot State",
                                 "Repeat",
                                 "Repeat Overwrite",
                                 "Device Info",
@@ -482,6 +483,24 @@
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 255
+                    }
+                }
+            }
+        },
+
+        "DisplaySlots": {
+            "type": "array",
+            "minItems": 6,
+            "maxItems": 6,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "Slot": {
+                        "type": "integer",
+                        "enum": [1, 2, 3, 4, 5, 6]
+                    },
+                    "Color": {
+                        "type": "string"
                     }
                 }
             }

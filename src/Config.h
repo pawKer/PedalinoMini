@@ -381,6 +381,15 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
       jo["Button2"]            = (controls[c].button2 == LADDER_STEPS  ? 0 : controls[c].button2 + 1);
       jo["Led"]                = (controls[c].led     == LEDS          ? 0 : controls[c].led     + 1);
     }
+
+    JsonArray jdisplaySlots = jdoc["DisplaySlots"].to<JsonArray>();
+    for (byte s = 0; s < SLOTS; s++) {
+      char color[8];
+      JsonObject jo = jdisplaySlots.add<JsonObject>();
+      jo["Slot"]              = s + 1;
+      snprintf(color, 8, "#%06x", slotBorderColor[s] & 0xFFFFFF);
+      jo["Color"]             = color;
+    }
   }
 
   if (saveActions) {
@@ -556,6 +565,9 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
 
   // Get a reference to the root object
   JsonObject jro = jdoc.as<JsonObject>();
+  if (loadControls) {
+    for (byte s = 0; s < SLOTS; s++) slotBorderColor[s] = 0xFFFFFF;
+  }
   // Loop through all the key-value pairs in obj
   for (JsonPair jp : jro) {
     if (loadOptions && String(jp.key().c_str()) == String("Globals")) {
@@ -669,6 +681,18 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
           controls[c].button2 = (controls[c].button2 == 0 ? LADDER_STEPS : constrain(controls[c].button2 - 1, 0, LADDER_STEPS - 1));
           controls[c].led     = jo["Led"];
           controls[c].led     = (controls[c].led     == 0 ? LEDS : constrain(controls[c].led - 1, 0, LEDS - 1));
+        }
+      }
+    }
+    else if (loadControls && String(jp.key().c_str()) == String("DisplaySlots")) {
+      if (jp.value().is<JsonArray>()) {
+        JsonArray ja = jp.value();
+        for (JsonObject jo : ja) {
+          unsigned int red = 255, green = 255, blue = 255;
+          int s = jo["Slot"];
+          s = constrain(s - 1, 0, SLOTS - 1);
+          sscanf(jo["Color"] | "#ffffff", "#%02x%02x%02x", &red, &green, &blue);
+          slotBorderColor[s] = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
         }
       }
     }
@@ -1156,6 +1180,10 @@ void load_factory_default()
     controls[i].led     = LEDS;
   }
 
+  for (byte s = 0; s < SLOTS; s++) {
+    slotBorderColor[s] = 0xFFFFFF;
+  }
+
   byte c = 0;
   for (byte p = 0; p < 6; p++) {
     byte b = 0;
@@ -1568,6 +1596,7 @@ void eeprom_update_profile(byte profile = currentProfile)
   };
   preferences.putBytes("Pedals",      &pedals_copy, sizeof(pedals));
   preferences.putBytes("Controls",    &controls,    sizeof(controls));
+  preferences.putBytes("SlotColor",   &slotBorderColor, sizeof(slotBorderColor));
   preferences.putBytes("BankNames",   &banknames,   sizeof(banknames));
   preferences.putBytes("Interfaces",  &interfaces,  sizeof(interfaces));
   preferences.putBytes("Sequences",   &sequences,   sizeof(sequences));
@@ -1746,6 +1775,10 @@ void eeprom_read_profile(byte profile = currentProfile)
     }
   }
   preferences.getBytes("Controls",    &controls,    sizeof(controls));
+  for (byte i = 0; i < SLOTS; i++) slotBorderColor[i] = 0xFFFFFF;
+  int slotColorBytes = preferences.getBytes("SlotColor", &slotBorderColor, sizeof(slotBorderColor));
+  if (slotColorBytes != sizeof(slotBorderColor))
+    DPRINT("Slot border colors not found in profile, using defaults\n");
   preferences.getBytes("BankNames",   &banknames,   sizeof(banknames));
   preferences.getBytes("Interfaces",  &interfaces,  sizeof(interfaces));
   preferences.getBytes("Sequences",   &sequences,   sizeof(sequences));

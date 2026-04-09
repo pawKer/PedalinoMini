@@ -815,15 +815,15 @@ void drawFrame1(int16_t x, int16_t y)
       act = act->next;
     }
 
-    String cellLine1[SLOTS];
-    String cellLine2[SLOTS];
+    String cellLabel[SLOTS];
     bool   cellActive[SLOTS] = {};
-    const int maxCharsPerLine = 8;
+    uint32_t cellColor[SLOTS] = {};
 
     for (byte s = 0; s < SLOTS; s++) {
       action* a = slotActions[s];
       String label = "";
       bool active = slotDisplayInitialized[currentBank][s] ? slotDisplayState[currentBank][s] : false;
+      uint32_t accentColor = slotBorderColor[s] & 0xFFFFFF;
       int value = 0;
       bool hasValue = false;
 
@@ -848,31 +848,21 @@ void drawFrame1(int16_t x, int16_t y)
       label.replace(String("\n"), String(" "));
       label.trim();
 
-      String line1 = "";
-      String line2 = "";
-      if (label.length() <= maxCharsPerLine) {
-        line1 = label;
-      } else {
-        line1 = label.substring(0, maxCharsPerLine);
-        line2 = label.substring(maxCharsPerLine);
-        if (line2.length() > maxCharsPerLine) {
-          line2 = line2.substring(0, _max(0, maxCharsPerLine - 3)) + "...";
-        }
-      }
-
-      cellLine1[s] = line1;
-      cellLine2[s] = line2;
+      cellLabel[s] = label;
       cellActive[s] = active;
+      cellColor[s] = accentColor;
     }
 
     static bool   gridCacheInit = false;
     static byte   lastBank = 0xFF;
-    static String lastLine1[SLOTS];
-    static String lastLine2[SLOTS];
+    static String lastLabel[SLOTS];
     static bool   lastActive[SLOTS] = {};
+    static uint32_t lastColor[SLOTS] = {};
     bool changed = !gridCacheInit || displayInit || (lastBank != currentBank) || overlayWasActive;
     for (byte s = 0; s < SLOTS; s++) {
-      if (lastActive[s] != cellActive[s] || lastLine1[s] != cellLine1[s] || lastLine2[s] != cellLine2[s]) {
+      if (lastActive[s] != cellActive[s] ||
+          lastLabel[s] != cellLabel[s] ||
+          lastColor[s] != cellColor[s]) {
         changed = true;
         break;
       }
@@ -884,8 +874,8 @@ void drawFrame1(int16_t x, int16_t y)
     lastBank = currentBank;
     for (byte s = 0; s < SLOTS; s++) {
       lastActive[s] = cellActive[s];
-      lastLine1[s] = cellLine1[s];
-      lastLine2[s] = cellLine2[s];
+      lastLabel[s] = cellLabel[s];
+      lastColor[s] = cellColor[s];
     }
 
     TFT_eSprite sprite = TFT_eSprite(&display);
@@ -893,13 +883,31 @@ void drawFrame1(int16_t x, int16_t y)
     sprite.createSprite(display.width(), display.height() - TOP_HEIGHT);
     sprite.setBitmapColor(TFT_WHITE, TFT_BLACK);
     sprite.fillRect(0, 0, sprite.width(), sprite.height(), TFT_BLACK);
-    sprite.setFreeFont(&FreeSans12pt7b);
+    sprite.setFreeFont(&FreeSansBold12pt7b);
     sprite.setTextDatum(MC_DATUM);
 
     const int cols = 3;
     const int rows = 2;
     const int cellW = sprite.width() / cols;
     const int cellH = sprite.height() / rows;
+    const int lineHeight = _max(12, sprite.fontHeight());
+    const int lineSpacing = 2;
+    const int lineStep = lineHeight + lineSpacing;
+
+    auto fitEllipsis = [&](String text, int maxWidth) -> String {
+      text.trim();
+      if (text.length() == 0) return "";
+      if (sprite.textWidth(text) <= maxWidth) return text;
+
+      const String ellipsis = "...";
+      if (sprite.textWidth(ellipsis) > maxWidth) return ellipsis;
+
+      while (text.length() > 0 && sprite.textWidth(text + ellipsis) > maxWidth) {
+        text.remove(text.length() - 1);
+        text.trim();
+      }
+      return (text.length() > 0) ? (text + ellipsis) : ellipsis;
+    };
 
     for (byte s = 0; s < SLOTS; s++) {
       const int col = s % cols;
@@ -908,11 +916,42 @@ void drawFrame1(int16_t x, int16_t y)
       const int sy = row * cellH;
       const int sw = (col == cols - 1) ? sprite.width() - sx : cellW;
       const int sh = (row == rows - 1) ? sprite.height() - sy : cellH;
+      const int textMaxWidth = _max(6, sw - 10);
+      String lines[3] = {"", "", ""};
+      String remaining = cellLabel[s];
+      remaining.trim();
+      int lineCount = 0;
 
-      String line1 = cellLine1[s];
-      String line2 = cellLine2[s];
-      while (line1.length() > 0 && sprite.textWidth(line1) > (sw - 10)) line1.remove(line1.length() - 1);
-      while (line2.length() > 0 && sprite.textWidth(line2) > (sw - 10)) line2.remove(line2.length() - 1);
+      for (int line = 0; line < 3 && remaining.length() > 0; line++) {
+        if (line == 2) {
+          lines[line] = fitEllipsis(remaining, textMaxWidth);
+          lineCount++;
+          break;
+        }
+
+        if (sprite.textWidth(remaining) <= textMaxWidth) {
+          lines[line] = remaining;
+          lineCount++;
+          break;
+        }
+
+        int breakPos = -1;
+        int charFit = 0;
+        for (int i = 0; i < remaining.length(); i++) {
+          String probe = remaining.substring(0, i + 1);
+          if (sprite.textWidth(probe) > textMaxWidth) break;
+          charFit = i + 1;
+          if (remaining[i] == ' ') breakPos = i;
+        }
+
+        int splitPos = (breakPos >= 0) ? breakPos : charFit;
+        if (splitPos <= 0) splitPos = 1;
+        lines[line] = remaining.substring(0, splitPos);
+        lines[line].trim();
+        remaining = remaining.substring(splitPos);
+        remaining.trim();
+        lineCount++;
+      }
 
       if (cellActive[s]) {
         sprite.fillRoundRect(sx + 2, sy + 2, sw - 4, sh - 4, 6, 1);
@@ -922,16 +961,46 @@ void drawFrame1(int16_t x, int16_t y)
       }
 
       sprite.drawRoundRect(sx, sy, sw - 1, sh - 1, 6, 1);
-      if (line2.length() > 0) {
-        sprite.drawString(line1, sx + sw / 2 + x, sy + sh / 2 - 10 + y);
-        sprite.drawString(line2, sx + sw / 2 + x, sy + sh / 2 + 12 + y);
+      const int centerX = sx + sw / 2 + x;
+      const int centerY = sy + sh / 2 + y;
+      if (lineCount <= 1) {
+        sprite.drawString(lines[0], centerX, centerY);
+      } else if (lineCount == 2) {
+        sprite.drawString(lines[0], centerX, centerY - lineStep / 2);
+        sprite.drawString(lines[1], centerX, centerY + lineStep / 2);
       } else {
-        sprite.drawString(line1, sx + sw / 2 + x, sy + sh / 2 + y);
+        sprite.drawString(lines[0], centerX, centerY - lineStep);
+        sprite.drawString(lines[1], centerX, centerY);
+        sprite.drawString(lines[2], centerX, centerY + lineStep);
       }
     }
 
     sprite.pushSprite(0, TOP_HEIGHT);
     sprite.deleteSprite();
+
+    // Color accent border by control color (S3 only).
+    for (byte s = 0; s < SLOTS; s++) {
+      const int col = s % cols;
+      const int row = s / cols;
+      const int sx = col * cellW;
+      const int sy = row * cellH;
+      const int sw = (col == cols - 1) ? display.width() - sx : cellW;
+      const int sh = (row == rows - 1) ? (display.height() - TOP_HEIGHT) - sy : cellH;
+      uint32_t rgb = cellColor[s] & 0xFFFFFF;
+      uint16_t c565 = display.color565((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff);
+
+      // Keep white fallback subtle, but make custom colors a bit thicker.
+      const bool customColor = (rgb != 0xFFFFFF);
+      const int accentLayers = customColor ? 5 : 1;
+      for (int layer = 0; layer < accentLayers; layer++) {
+        const int inset = 1 + layer;
+        const int w = sw - (2 * inset + 1);
+        const int h = sh - (2 * inset + 1);
+        if (w > 0 && h > 0) {
+          display.drawRoundRect(sx + inset, TOP_HEIGHT + sy + inset, w, h, 6, c565);
+        }
+      }
+    }
   }
 #else
   if (millis() < endMillis2 && lastPedalName[0] != ':') {

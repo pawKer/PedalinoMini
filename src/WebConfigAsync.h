@@ -188,6 +188,17 @@ bool get_top_page(int p, unsigned int start, unsigned int len) {
   if (trim_page(start, len)) return true;
 
   page += F("<li class='nav-item");
+  page += (p == 9 ? F(" active'>") : F("'>"));
+  page += F("<a class='nav-link' href='/display'>");
+  page += F("<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-display' viewBox='0 0 16 16'>");
+  page += F("<path d='M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9.414l1 1H12a.5.5 0 0 1 0 1H4a.5.5 0 0 1 0-1h1.586l1-1H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z'/>");
+  page += F("</svg>");
+  page += F(" Display</a>");
+  page += F("</li>");
+
+  if (trim_page(start, len)) return true;
+
+  page += F("<li class='nav-item");
   page += (p == 5 ? F(" active'>") : F("'>"));
   page += F("<a class='nav-link' href='/interfaces'>");
   page += F("<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-hdd-network' viewBox='0 0 16 16'>");
@@ -3215,6 +3226,104 @@ void get_controls_page(unsigned int start, unsigned int len) {
   if (trim_page(start, len, true)) return;
 }
 
+void get_display_page(unsigned int start, unsigned int len) {
+
+  if (get_top_page(9, start, len)) return;
+
+  page += F("<form method='post'>");
+  page += F("<div class='card mb-3'>");
+  page += F("<div class='card-header'>");
+  page += F("<div class='row'>");
+  page += F("<div class='col-auto me-auto'>");
+  page += F("<h5 class='mb-0'>");
+  page += F("<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' fill='currentColor' class='bi bi-display' viewBox='0 0 16 16'>");
+  page += F("<path d='M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9.414l1 1H12a.5.5 0 0 1 0 1H4a.5.5 0 0 1 0-1h1.586l1-1H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z'/>");
+  page += F("</svg>");
+  page += F(" Display Customization");
+  page += F("</h5>");
+  page += F("</div>");
+  page += F("<div class='col-auto'>");
+  page += F("<button type='submit' name='action' value='apply' class='btn btn-primary btn-sm'>");
+  page += F("<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-check2-circle' viewBox='0 0 16 16'>");
+  page += F("<path d='M2.5 8a5.5 5.5 0 0 1 8.25-4.764.5.5 0 0 0 .5-.866A6.5 6.5 0 1 0 14.5 8a.5.5 0 0 0-1 0 5.5 5.5 0 1 1-11 0z'/>");
+  page += F("<path d='M15.354 3.354a.5.5 0 0 0-.708-.708L8 9.293 5.354 6.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z'/>");
+  page += F("</svg>");
+  page += F(" Apply</button>");
+  page += F(" ");
+  page += F("<button type='submit' name='action' value='save' class='btn btn-primary btn-sm'>");
+  page += F("<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-save' viewBox='0 0 16 16'>");
+  page += F("<path d='M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9.5a1 1 0 0 0-1 1v7.293l2.646-2.647a.5.5 0 0 1 .708.708l-3.5 3.5a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L7.5 9.293V2a2 2 0 0 1 2-2H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h2.5a.5.5 0 0 1 0 1H2z'>");
+  page += F("</svg>");
+  page += F(" Save</button>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("<div class='card-body'>");
+  page += F("<div class='row g-3'>");
+  page += F("<div class='col-12 col-lg-6'>");
+  page += F("<div class='row row-cols-1 row-cols-sm-2 g-2'>");
+
+  if (trim_page(start, len)) return;
+
+  for (byte s = 0; s < SLOTS; s++) {
+    char color[8];
+    snprintf(color, 8, "#%06x", slotBorderColor[s] & 0xFFFFFF);
+    page += F("<div class='col'>");
+    page += F("<div class='form-floating'>");
+    page += F("<input class='form-control form-control-color w-100 slot-color-input' type='color' id='slotColor");
+    page += (s + 1);
+    page += F("' name='slotcolor-");
+    page += (s + 1);
+    page += F("' value='");
+    page += color;
+    page += F("'>");
+    page += F("<label for='slotColor");
+    page += (s + 1);
+    page += F("'>Slot ");
+    page += (s + 1);
+    page += F("</label>");
+    page += F("</div>");
+    page += F("</div>");
+    if (trim_page(start, len)) return;
+  }
+
+  page += F("</div>");
+  page += F("</div>");
+  page += F("<div class='col-12 col-lg-6'>");
+  page += F("<div class='border rounded p-3'>");
+  page += F("<div class='small text-secondary mb-2'>Display Preview (basic mock-up)</div>");
+  page += F("<div id='displayPreview' style='display:grid;grid-template-columns:repeat(3,minmax(68px,1fr));gap:8px;'>");
+  for (byte s = 0; s < SLOTS; s++) {
+    page += F("<div id='previewSlot");
+    page += (s + 1);
+    page += F("' style='height:64px;border:4px solid #ffffff;border-radius:8px;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;'>S");
+    page += (s + 1);
+    page += F("</div>");
+  }
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</form>");
+
+  if (trim_page(start, len)) return;
+
+  page += F("<script>");
+  page += F("function updateDisplayPreview(){for(let i=1;i<=");
+  page += SLOTS;
+  page += F(";i++){const input=document.getElementById('slotColor'+i);const slot=document.getElementById('previewSlot'+i);if(input&&slot){slot.style.borderColor=input.value;}}}"
+            "document.addEventListener('DOMContentLoaded',function(){for(let i=1;i<=");
+  page += SLOTS;
+  page += F(";i++){const input=document.getElementById('slotColor'+i);if(input)input.addEventListener('input',updateDisplayPreview);}updateDisplayPreview();});");
+  page += F("</script>");
+
+  get_footer_page();
+
+  if (trim_page(start, len, true)) return;
+}
+
 void get_interfaces_page(unsigned int start, unsigned int len) {
 
   if (get_top_page(5, start, len)) return;
@@ -5334,6 +5443,22 @@ size_t get_controls_page_chunked(uint8_t *buffer, size_t maxLen, size_t index) {
   return byteWritten;
 }
 
+size_t get_display_page_chunked(uint8_t *buffer, size_t maxLen, size_t index) {
+
+  page = "";
+  get_display_page(index, maxLen - 1);
+  page.getBytes(buffer, maxLen, 0);
+  buffer[maxLen-1] = 0; // CWE-126
+  size_t byteWritten = strlen((const char *)buffer);
+  if (byteWritten == 0) {
+    page = "";
+    alert = "";
+    alertError = "";
+    fullPageCompleted = true;
+  }
+  return byteWritten;
+}
+
 size_t get_interfaces_page_chunked(uint8_t *buffer, size_t maxLen, size_t index) {
 
   page = "";
@@ -5524,6 +5649,14 @@ void http_handle_controls(AsyncWebServerRequest *request) {
   http_handle_globals(request);
     if (request->hasArg("controlpage")) uicontrolpage = request->arg("controlpage");
   AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_controls_page_chunked);
+  response->addHeader("Connection", "close");
+  request->send(response);
+}
+
+void http_handle_display(AsyncWebServerRequest *request) {
+  if (!httpUsername.isEmpty() && !request->authenticate(httpUsername.c_str(), httpPassword.c_str())) return request->requestAuthentication();
+  http_handle_globals(request);
+  AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_display_page_chunked);
   response->addHeader("Connection", "close");
   request->send(response);
 }
@@ -5926,6 +6059,32 @@ void http_handle_post_controls(AsyncWebServerRequest *request) {
   }
 
   AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_controls_page_chunked);
+  response->addHeader("Connection", "close");
+  request->send(response);
+}
+
+void http_handle_post_display(AsyncWebServerRequest *request) {
+
+  String a;
+  for (byte s = 0; s < SLOTS; s++) {
+    unsigned int red = 255, green = 255, blue = 255;
+    a = request->arg(String("slotcolor-") + String(s + 1));
+    sscanf(a.c_str(), "#%02x%02x%02x", &red, &green, &blue);
+    slotBorderColor[s] = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+  }
+
+  if (request->arg("action").equals("apply")) {
+    loadConfig = true;
+    alert = F("Changes applied. Changes will be lost on next reboot or on profile switch if not saved.");
+  }
+  else if (request->arg("action").equals("save")) {
+    eeprom_update_profile();
+    eeprom_update_current_profile(currentProfile);
+    loadConfig = true;
+    alert = "Changes saved.";
+  }
+
+  AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_display_page_chunked);
   response->addHeader("Connection", "close");
   request->send(response);
 }
@@ -6701,6 +6860,8 @@ void http_setup() {
   httpServer.on("/pedals",          HTTP_POST,  http_handle_post_pedals);
   httpServer.on("/virtualpedals",   HTTP_GET,   http_handle_controls);
   httpServer.on("/virtualpedals",   HTTP_POST,  http_handle_post_controls);
+  httpServer.on("/display",         HTTP_GET,   http_handle_display);
+  httpServer.on("/display",         HTTP_POST,  http_handle_post_display);
   httpServer.on("/sequences",       HTTP_GET,   http_handle_sequences);
   httpServer.on("/sequences",       HTTP_POST,  http_handle_post_sequences);
   httpServer.on("/interfaces",      HTTP_GET,   http_handle_interfaces);

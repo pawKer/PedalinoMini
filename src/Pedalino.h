@@ -443,6 +443,7 @@ action   *actions[BANKS];                         // Actions
 bank      banks[BANKS][PEDALS];                   // The first action of every pedal
 pedal     pedals[PEDALS];                         // Pedals Setup
 control   controls[CONTROLS];                     // Controls Setup
+uint32_t  slotBorderColor[SLOTS];                 // Per-slot UI border color (0xRRGGBB)
 message   sequences[SEQUENCES][STEPS];            // Sequences Setup
 byte      currentMIDIValue[BANKS][PEDALS][LADDER_STEPS];
 message   lastMIDIMessage[BANKS];
