@@ -525,6 +525,74 @@
                     }
                 }
             }
+        },
+
+        "IncomingTriggers": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 64,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "TriggerType": {
+                        "type": "string",
+                        "enum": ["Control Change", "Program Change"]
+                    },
+                    "Channel": {
+                        "type": "integer",
+                        "enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+                    },
+                    "Number": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 127
+                    },
+                    "ValueMode": {
+                        "type": "string",
+                        "enum": ["Any", "Exact"]
+                    },
+                    "Value": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 127
+                    },
+                    "Actions": {
+                        "type": "array",
+                        "minItems": 0,
+                        "maxItems": 4,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "Action": {
+                                    "type": "string",
+                                    "enum": ["Set Led Color", "Set Slot State", "Set Bank"]
+                                },
+                                "Led": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 255
+                                },
+                                "Color": {
+                                    "type": "string"
+                                },
+                                "Slot": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 6
+                                },
+                                "State": {
+                                    "type": "integer",
+                                    "enum": [0, 1]
+                                },
+                                "Bank": {
+                                    "type": "integer",
+                                    "enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

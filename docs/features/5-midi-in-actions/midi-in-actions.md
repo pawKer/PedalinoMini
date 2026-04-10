@@ -1,96 +1,80 @@
-### Incoming MIDI Actions V1 (Profile-Scoped, CC/PC Triggers)
+### Incoming MIDI Actions V2 (Grouped Triggers, Multi-Action)
 
 #### Summary
-Implement a new **Incoming Actions** feature that executes local actions when MIDI-IN messages are received, so external devices can drive Pedalino LED/display/bank state.
+Incoming MIDI Actions now supports **trigger groups** so one incoming MIDI message can run multiple local actions in order.
 
 Locked behavior:
-- Scope: **per profile**, active across **all banks**.
-- Sources: all enabled MIDI-IN interfaces (USB, DIN, BLE, RTP, ipMIDI).
-- Triggers: **Control Change** and **Program Change** only.
-- Matching: type + channel (`1..16` or `Any`) + number (`0..127`), plus optional exact value filter for CC.
-- Actions in v1: **Set Led Color**, **Set Slot State**, **Set Bank**.
-- Conflict policy: run built-in receive behavior first, then incoming rules (incoming rules win).
-- Multi-match: run **all** matching rules in stored list order.
-- Ordering UX: creation order only (append on add; no reordering controls).
+- Scope: profile-level configuration.
+- Trigger source types: Control Change and Program Change.
+- Actions supported: Set Led Color, Set Slot State, Set Bank.
+- Ordering:
+  - Within a group: stored action order.
+  - Across groups: group creation order.
+- Precedence unchanged: built-in receive behavior first, then incoming trigger groups.
+- Migration policy: old flat `IncomingActions` is legacy and must be migrated manually.
 
-#### Key Changes
-- **Runtime model**
-  - Add fixed-capacity rule storage to keep memory deterministic and preserve list order:
-    - `INCOMING_ACTIONS_MAX = 64`
-    - `incomingAction incomingActions[INCOMING_ACTIONS_MAX]`
-    - `byte incomingActionCount`
-  - Add `incomingAction` type with:
-    - Trigger: `triggerType` (`CC`/`PC`), `channel` (`1..16`, `17=Any`), `number`, `valueMode` (`Any`/`Exact`), `value`
-    - Target action: `targetAction` (`Set Led Color`/`Set Slot State`/`Set Bank`)
-    - Payload fields:
-      - LED: `led` (`1..LEDS`), `color` (`0xRRGGBB`)
-      - Slot: `slot` (`1..SLOTS`), `state` (`0/1`)
-      - Bank: `bank` (`1..20`)
-- **Execution pipeline**
-  - Add centralized dispatcher in controller runtime, e.g. `incoming_actions_run(midiType, channel, data1, data2)`.
-  - Call dispatcher in MIDI-IN callbacks for CC/PC on all interfaces:
-    - `SerialMidiIn.h`, `USBMidiIn.h`, `BLEMidiIn.h`, `UdpMidiIn.h` (RTP + ipMIDI)
-  - Call point ordering:
-    - Keep existing forward/thru + `leds_update` + existing `switch_profile_or_bank` behavior.
-    - Then execute incoming rules.
-  - Action application:
-    - Set Led Color: set direct LED index, apply `swap_rgb_order`, `FastLED.show()`, update `lastLedColor[currentBank][led]`.
-    - Set Slot State: call existing `set_slot_display_state(currentBank, slot-1, state)`.
-    - Set Bank: set `currentBank` (`1..20`), then `reset_slot_display_state(currentBank)`, `update_current_step()`, `leds_refresh()`.
-- **Web UI**
-  - Add top-nav tab and page: `GET /incoming-actions`, `POST /incoming-actions`.
-  - Page includes:
-    - Add Rule button (append)
-    - Rule cards/rows with Delete
-    - Trigger fields: message type, channel, number, value mode/value (value enabled only for CC)
-    - Action fields:
-      - Set Led Color: LED selector + color picker
-      - Set Slot State: slot selector + state selector
-      - Set Bank: bank selector `1..20`
-    - Apply/Save buttons matching existing behavior semantics.
-- **Persistence + schema**
-  - Persist per profile in both SPIFFS JSON and NVS.
-  - JSON: add top-level `IncomingActions` array in profile config.
-  - NVS: add profile keys for incoming rules and count.
-  - Extend `data/schema.json` with `IncomingActions` definition.
-  - Backward compatibility:
-    - Missing `IncomingActions` => `incomingActionCount = 0`.
-    - Legacy configs load unchanged.
-  - Include `IncomingActions` in import/export and profile save/load flows.
+#### Runtime Model
+- Deterministic capacities:
+  - `INCOMING_TRIGGERS_MAX = 64`
+  - `INCOMING_TRIGGER_ACTIONS_MAX = 4`
+- Runtime storage:
+  - `incomingTrigger incomingTriggers[INCOMING_TRIGGERS_MAX]`
+  - `byte incomingTriggerCount`
+- Types:
+  - `incomingTrigger`:
+    - Trigger fields: `triggerType`, `channel`, `number`, `valueMode`, `value`
+    - `actionCount`
+    - `actions[]` (`incomingTargetAction`)
+  - `incomingTargetAction`:
+    - `targetAction`, `led`, `color`, `slot`, `state`, `bank`
 
-#### Public Interfaces / Types
-- New HTTP endpoints:
-  - `GET /incoming-actions`
-  - `POST /incoming-actions`
-- New profile config section:
-  - `IncomingActions: []`
-- New runtime type/constants:
-  - `incomingAction` struct
-  - `INCOMING_ACTIONS_MAX`
-  - `incomingActions[]`, `incomingActionCount`
+#### Execution Semantics
+- `incoming_actions_run(midiType, channel, data1, data2)`:
+  - Match each trigger group by type/channel/number (+ CC value filter when Exact).
+  - Execute all actions in the matched group in stored order.
+  - Continue scanning and executing later matching groups.
+- Stateful ordering is intentional:
+  - If `Set Bank` runs first in a group, later actions in that same group apply to the new bank.
+
+#### UI (`/incoming-actions`)
+- Add Trigger button appends a new group.
+- Each trigger group includes:
+  - Trigger fields
+  - Add Action button
+  - Delete Group button
+- Each action row includes:
+  - Action type-specific fields
+  - Delete Action button
+- No reordering controls (append-only ordering in v2).
+- Legacy warning banner appears when old `IncomingActions` is detected in imported JSON.
+
+#### Persistence + Schema
+- JSON config now uses:
+  - `IncomingTriggers: [ { Trigger..., Actions: [ ... ] } ]`
+- Legacy:
+  - Flat `IncomingActions` is not auto-converted.
+- NVS keys updated to grouped storage:
+  - `InTriggers`
+  - `InTrigCnt`
 
 #### Test Plan
-1. **UI CRUD + ordering**
-   - Add multiple rules, verify append order, delete middle rule, Apply/Save behavior.
-2. **Persistence**
-   - Save rules, reboot, verify rules restored; switch profiles A/B/C and verify profile isolation.
-3. **Trigger matching**
-   - CC rule with `Any` value fires on all values.
-   - CC rule with exact value fires only on matching value.
-   - PC rule ignores value filter and matches channel+program number.
-4. **Action outcomes**
-   - Set Led Color updates correct physical LED and persists visual state.
-   - Set Slot State updates S3 slot state rendering.
-   - Set Bank switches to selected bank `1..20` and refreshes LEDs/display state.
-5. **Source interfaces**
-   - Validate same rule behavior from USB, DIN, BLE, RTP, and ipMIDI inputs (when enabled).
-6. **Precedence/conflicts**
-   - Message that also triggers existing `leds_update` path: confirm incoming action result is final visible state.
-7. **Regression**
-   - No changes to outgoing action behavior, actions tab behavior, display customization tab behavior, or non-triggered MIDI traffic.
-
-#### Assumptions
-- Incoming rules are profile-level only (not per-bank, not global across profiles).
-- `Set Bank` is fixed target per rule (not derived from incoming value).
-- Incoming channel wildcard uses `17` internally (`Any`) to align with existing “All” channel semantics.
-- No rule enable/disable toggle in v1; delete to disable.
+1. Single trigger with multiple actions:
+   - Configure one CC trigger with 3 actions.
+   - Verify all actions run in configured order.
+2. Ordering semantics:
+   - In one group: `Set Bank` then `Set Slot State` and LED color.
+   - Verify latter actions apply after bank switch.
+3. Multi-group matching:
+   - Two groups matching the same incoming CC.
+   - Verify group A completes before group B starts.
+4. Trigger filters:
+   - CC Any and Exact behaviors unchanged.
+   - PC ignores value filter.
+5. CRUD + persistence:
+   - Add/delete groups/actions, Apply/Save, reboot, profile switch.
+   - Verify order and payload preservation.
+6. Interface coverage:
+   - Validate USB, DIN, BLE, RTP, and ipMIDI.
+7. Legacy import:
+   - Import config with flat `IncomingActions`.
+   - Verify no crash and explicit manual migration warning.

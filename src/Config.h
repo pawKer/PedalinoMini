@@ -240,6 +240,40 @@ String ActionEnumToString (byte msg)
   }
 }
 
+byte IncomingTriggerStringToEnum(const String& trigger)
+{
+  if (trigger.equals("Program Change")) return PED_PROGRAM_CHANGE;
+  return PED_CONTROL_CHANGE;
+}
+
+String IncomingTriggerEnumToString(byte trigger)
+{
+  switch (trigger) {
+    case PED_PROGRAM_CHANGE:
+      return "Program Change";
+    case PED_CONTROL_CHANGE:
+    default:
+      return "Control Change";
+  }
+}
+
+byte IncomingValueModeStringToEnum(const String& mode)
+{
+  if (mode.equals("Exact")) return INCOMING_VALUE_EXACT;
+  return INCOMING_VALUE_ANY;
+}
+
+String IncomingValueModeEnumToString(byte mode)
+{
+  switch (mode) {
+    case INCOMING_VALUE_EXACT:
+      return "Exact";
+    case INCOMING_VALUE_ANY:
+    default:
+      return "Any";
+  }
+}
+
 //
 //  Delete a file from SPIFFS
 //
@@ -427,6 +461,29 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
         act = act->next;
       }
     }
+
+    JsonArray jincomingTriggers = jdoc["IncomingTriggers"].to<JsonArray>();
+    for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
+      JsonObject trigger = jincomingTriggers.add<JsonObject>();
+      trigger["TriggerType"] = IncomingTriggerEnumToString(incomingTriggers[i].triggerType);
+      trigger["Channel"]     = incomingTriggers[i].channel;
+      trigger["Number"]      = incomingTriggers[i].number;
+      trigger["ValueMode"]   = IncomingValueModeEnumToString(incomingTriggers[i].valueMode);
+      trigger["Value"]       = incomingTriggers[i].value;
+
+      JsonArray jactions = trigger["Actions"].to<JsonArray>();
+      for (byte a = 0; a < incomingTriggers[i].actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
+        char color[8];
+        JsonObject jo = jactions.add<JsonObject>();
+        jo["Action"] = ActionEnumToString(incomingTriggers[i].actions[a].targetAction);
+        jo["Led"]    = incomingTriggers[i].actions[a].led;
+        snprintf(color, 8, "#%06x", incomingTriggers[i].actions[a].color & 0xFFFFFF);
+        jo["Color"]  = color;
+        jo["Slot"]   = incomingTriggers[i].actions[a].slot;
+        jo["State"]  = incomingTriggers[i].actions[a].state;
+        jo["Bank"]   = incomingTriggers[i].actions[a].bank;
+      }
+    }
   }
 
   if (saveInterfaces) {
@@ -572,6 +629,11 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
 
   // Get a reference to the root object
   JsonObject jro = jdoc.as<JsonObject>();
+  if (loadActions && !append) {
+    incomingTriggerCount = 0;
+    memset(incomingTriggers, 0, sizeof(incomingTriggers));
+    incomingLegacyRulesDetected = false;
+  }
   if (loadControls) {
     for (byte s = 0; s < SLOTS; s++) slotBorderColor[s] = 0xFFFFFF;
   }
@@ -790,6 +852,56 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
               }
         }
       }
+    }
+    else if (loadActions && String(jp.key().c_str()) == String("IncomingTriggers")) {
+      if (jp.value().is<JsonArray>()) {
+        JsonArray ja = jp.value();
+        for (JsonObject triggerJson : ja) {
+          if (incomingTriggerCount >= INCOMING_TRIGGERS_MAX) break;
+          incomingTrigger *trigger = &incomingTriggers[incomingTriggerCount];
+          trigger->triggerType = IncomingTriggerStringToEnum(triggerJson["TriggerType"] | "Control Change");
+          trigger->channel     = constrain((int)(triggerJson["Channel"] | 17), 1, 17);
+          trigger->number      = constrain((int)(triggerJson["Number"] | 0), 0, MIDI_RESOLUTION - 1);
+          trigger->valueMode   = IncomingValueModeStringToEnum(triggerJson["ValueMode"] | "Any");
+          trigger->value       = constrain((int)(triggerJson["Value"] | 0), 0, MIDI_RESOLUTION - 1);
+          trigger->actionCount = 0;
+
+          if (trigger->triggerType == PED_PROGRAM_CHANGE) {
+            trigger->valueMode = INCOMING_VALUE_ANY;
+            trigger->value = 0;
+          }
+
+          if (triggerJson["Actions"].is<JsonArray>()) {
+            JsonArray jactions = triggerJson["Actions"].as<JsonArray>();
+            for (JsonObject actionJson : jactions) {
+              if (trigger->actionCount >= INCOMING_TRIGGER_ACTIONS_MAX) break;
+              unsigned int red = 0, green = 0, blue = 0;
+              incomingTargetAction *target = &trigger->actions[trigger->actionCount];
+              target->targetAction = ActionStringToEnum(actionJson["Action"] | "Set Led Color");
+              if (target->targetAction != PED_ACTION_LED_COLOR &&
+                  target->targetAction != PED_ACTION_SET_SLOT_STATE &&
+                  target->targetAction != PED_ACTION_BANK) {
+                target->targetAction = PED_ACTION_LED_COLOR;
+              }
+              target->led = constrain((int)(actionJson["Led"] | 1), 1, LEDS);
+              sscanf(actionJson["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+              target->color = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+              target->slot = constrain((int)(actionJson["Slot"] | 1), 1, SLOTS);
+              target->state = constrain((int)(actionJson["State"] | 0), 0, 1);
+              target->bank = constrain((int)(actionJson["Bank"] | 1), 1, BANKS - 1);
+              trigger->actionCount++;
+            }
+          }
+
+          if (trigger->actionCount > 0) {
+            incomingTriggerCount++;
+          }
+        }
+      }
+    }
+    else if (loadActions && String(jp.key().c_str()) == String("IncomingActions")) {
+      incomingLegacyRulesDetected = true;
+      DPRINTLN("Legacy IncomingActions detected. Manual migration to IncomingTriggers is required.");
     }
     else if (loadInterfaces && String(jp.key().c_str()) == String("Interfaces")) {
       if (jp.value().is<JsonArray>()) {
@@ -1204,6 +1316,9 @@ void load_factory_default()
   for (byte s = 0; s < SLOTS; s++) {
     slotBorderColor[s] = 0xFFFFFF;
   }
+  incomingTriggerCount = 0;
+  memset(incomingTriggers, 0, sizeof(incomingTriggers));
+  incomingLegacyRulesDetected = false;
 
   byte c = 0;
   for (byte p = 0; p < 6; p++) {
@@ -1623,6 +1738,8 @@ void eeprom_update_profile(byte profile = currentProfile)
   preferences.putBytes("Interfaces",  &interfaces,  sizeof(interfaces));
   preferences.putBytes("Sequences",   &sequences,   sizeof(sequences));
   preferences.putBytes("SeqNames",    &sequenceNames, sizeof(sequenceNames));
+  preferences.putBytes("InTriggers",  &incomingTriggers, sizeof(incomingTriggers));
+  preferences.putUChar("InTrigCnt",   incomingTriggerCount);
   preferences.putUChar("Current Bank", currentBank);
   preferences.putUChar("Current MTC", currentMidiTimeCode);
 
@@ -1809,6 +1926,14 @@ void eeprom_read_profile(byte profile = currentProfile)
   int sequenceNameBytes = preferences.getBytes("SeqNames", &sequenceNames, sizeof(sequenceNames));
   if (sequenceNameBytes != sizeof(sequenceNames))
     DPRINT("Sequence names not found in profile, using defaults\n");
+  incomingTriggerCount = 0;
+  memset(incomingTriggers, 0, sizeof(incomingTriggers));
+  incomingLegacyRulesDetected = false;
+  int incomingTriggerBytes = preferences.getBytes("InTriggers", &incomingTriggers, sizeof(incomingTriggers));
+  if (incomingTriggerBytes != sizeof(incomingTriggers))
+    DPRINT("Incoming triggers not found in profile, using defaults\n");
+  incomingTriggerCount = constrain(preferences.getUChar("InTrigCnt"), 0, INCOMING_TRIGGERS_MAX);
+  if (incomingTriggerBytes != sizeof(incomingTriggers)) incomingTriggerCount = 0;
   currentBank         = preferences.getUChar("Current Bank");
   currentMidiTimeCode = preferences.getUChar("Current MTC");
 

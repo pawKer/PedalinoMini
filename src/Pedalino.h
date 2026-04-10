@@ -40,6 +40,11 @@ __________           .___      .__  .__                 _____  .__       .__    
 #define MAXACTIONNAME    16
 #define MAXBANKNAME      16
 #define MAXSEQUENCENAME  16
+#define INCOMING_TRIGGERS_MAX        64
+#define INCOMING_TRIGGER_ACTIONS_MAX 4
+
+#define INCOMING_VALUE_ANY    0
+#define INCOMING_VALUE_EXACT  1
 
 // https://randomnerdtutorials.com/esp32-pinout-reference-gpios/
 // GPIOs 34 to 39 are GPIs – input only pins.
@@ -439,6 +444,25 @@ struct message {
   uint32_t               color;
 };
 
+struct incomingTargetAction {
+  byte                   targetAction;     // PED_ACTION_LED_COLOR / PED_ACTION_SET_SLOT_STATE / PED_ACTION_BANK
+  byte                   led;              // 1..LEDS
+  uint32_t               color;            // 0xRRGGBB
+  byte                   slot;             // 1..SLOTS
+  byte                   state;            // 0/1
+  byte                   bank;             // 1..20
+};
+
+struct incomingTrigger {
+  byte                   triggerType;      // PED_CONTROL_CHANGE or PED_PROGRAM_CHANGE
+  byte                   channel;          // 1..16, 17 = Any
+  byte                   number;           // CC number / Program number
+  byte                   valueMode;        // INCOMING_VALUE_ANY / INCOMING_VALUE_EXACT
+  byte                   value;            // CC value when valueMode is Exact
+  byte                   actionCount;
+  incomingTargetAction   actions[INCOMING_TRIGGER_ACTIONS_MAX];
+};
+
 char      banknames[BANKS][MAXBANKNAME+1];        // Bank Names
 action   *actions[BANKS];                         // Actions
 bank      banks[BANKS][PEDALS];                   // The first action of every pedal
@@ -447,6 +471,9 @@ control   controls[CONTROLS];                     // Controls Setup
 uint32_t  slotBorderColor[SLOTS];                 // Per-slot UI border color (0xRRGGBB)
 message   sequences[SEQUENCES][STEPS];            // Sequences Setup
 char      sequenceNames[SEQUENCES][MAXSEQUENCENAME+1];
+incomingTrigger incomingTriggers[INCOMING_TRIGGERS_MAX];
+byte      incomingTriggerCount = 0;
+bool      incomingLegacyRulesDetected = false;
 byte      currentMIDIValue[BANKS][PEDALS][LADDER_STEPS];
 message   lastMIDIMessage[BANKS];
 CRGB      lastColor0;
@@ -674,6 +701,7 @@ void display_progress_bar_2_label(unsigned int, unsigned int);
 void display_off();
 
 void switch_profile_or_bank(byte, byte, byte);
+void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2);
 
 void mtc_start();
 void mtc_stop();

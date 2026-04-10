@@ -565,6 +565,49 @@ void switch_profile_or_bank(byte channel, byte number, byte value) {
     DPRINT("BANK.....%d\n", currentBank);
   }
 }
+
+void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2)
+{
+  if (midiType != midi::ControlChange && midiType != midi::ProgramChange) return;
+
+  for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
+    incomingTrigger *trigger = &incomingTriggers[i];
+
+    if (trigger->triggerType != midiType) continue;
+    if (trigger->channel != 17 && trigger->channel != channel) continue;
+    if (trigger->number != data1) continue;
+    if (midiType == midi::ControlChange && trigger->valueMode == INCOMING_VALUE_EXACT && trigger->value != data2) continue;
+
+    for (byte a = 0; a < trigger->actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
+      incomingTargetAction *target = &trigger->actions[a];
+      switch (target->targetAction) {
+        case PED_ACTION_LED_COLOR: {
+          byte led = constrain(target->led, 1, LEDS) - 1;
+          CRGB c = (CRGB)(target->color & 0xFFFFFF);
+          fastleds[led] = swap_rgb_order(c, rgbOrder);
+          fastleds[LEDS] = CRGB::Black;
+          FastLED.show();
+          lastLedColor[currentBank][led] = fastleds[led];
+          break;
+        }
+        case PED_ACTION_SET_SLOT_STATE: {
+          byte slot = constrain(target->slot, 1, SLOTS) - 1;
+          set_slot_display_state(currentBank, slot, constrain(target->state, 0, 1) == 1);
+          break;
+        }
+        case PED_ACTION_BANK: {
+          currentBank = constrain(target->bank, 1, BANKS - 1);
+          reset_slot_display_state(currentBank);
+          update_current_step();
+          leds_refresh();
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+}
 //
 //
 //

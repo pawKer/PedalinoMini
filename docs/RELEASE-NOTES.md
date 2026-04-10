@@ -45,6 +45,18 @@
   - New per-profile sequence names (`max 16`), shown as `N (Name)` in Actions/Sequences selectors.
   - New config/schema/NVS support: `SequenceNames` + `SeqNames`.
   - Sequences page includes editable `sequencename` input.
+- Incoming MIDI Actions V2 (grouped triggers) has been implemented locally but is currently uncommitted:
+  - Data model upgraded from flat rules to grouped triggers:
+    - `INCOMING_TRIGGERS_MAX=64`
+    - `INCOMING_TRIGGER_ACTIONS_MAX=4`
+    - `incomingTriggers[]` + `incomingTriggerCount`
+  - One incoming CC/PC trigger can now execute multiple actions in stored order.
+  - Dispatcher keeps existing precedence and now executes action chains per matched trigger group.
+  - `/incoming-actions` UI now supports Trigger Groups with per-group Add Action/Delete Group and per-action delete.
+  - Config/schema/NVS migrated to grouped shape:
+    - JSON: `IncomingTriggers`
+    - NVS: `InTriggers`, `InTrigCnt`
+  - Legacy flat `IncomingActions` is treated as manual migration only (warning shown, no auto-convert).
 
 ## Validation
 - Latest verified build: `pio run -e lilygo-t-display-s3` (success).

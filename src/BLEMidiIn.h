@@ -129,6 +129,7 @@ void OnBleMidiReceiveControlChange(byte channel, byte number, byte value)
   leds_update(midi::ControlChange, channel, number, value);
   if (IS_SHOW_ENABLED(interfaces[PED_BLEMIDI].midiIn)) screen_info(midi::ControlChange, number, value, channel);
   switch_profile_or_bank(channel, number, value);
+  incoming_actions_run(midi::ControlChange, channel, number, value);
 }
 
 void OnBleMidiReceiveProgramChange(byte channel, byte number)
@@ -143,6 +144,7 @@ void OnBleMidiReceiveProgramChange(byte channel, byte number)
   OSCSendProgramChange(number, channel);
   leds_update(midi::ProgramChange, channel, number, 0);
   if (IS_SHOW_ENABLED(interfaces[PED_BLEMIDI].midiIn)) screen_info(midi::ProgramChange, number, 0, channel);
+  incoming_actions_run(midi::ProgramChange, channel, number, 0);
 }
 
 void OnBleMidiReceiveAfterTouchChannel(byte channel, byte pressure)
