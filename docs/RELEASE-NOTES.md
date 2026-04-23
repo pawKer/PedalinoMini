@@ -41,6 +41,10 @@
   - Improved cell text fitting/wrapping logic.
 
 ## Unreleased (working tree, not yet committed)
+- LilyGO T-Display S3 DIN MIDI pins were split so hardware serial no longer reuses GPIO 1 for both directions:
+  - `DIN_MIDI_OUT_PIN = GPIO 1`
+  - `DIN_MIDI_IN_PIN = GPIO 2`
+  - Compatibility note: on this board config, GPIO 2 is also listed in `pinA[]`, so this change assumes DIN MIDI input takes priority over using that GPIO as an analog pedal input.
 - Sequence Names feature has been implemented locally but is currently uncommitted:
   - New per-profile sequence names (`max 16`), shown as `N (Name)` in Actions/Sequences selectors.
   - New config/schema/NVS support: `SequenceNames` + `SeqNames`.
