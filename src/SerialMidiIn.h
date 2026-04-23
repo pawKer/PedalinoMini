@@ -19,7 +19,6 @@ void OnSerialMidiNoteOn(byte channel, byte note, byte velocity)
   ipMIDISendNoteOn(note, velocity, channel);
   AppleMidiSendNoteOn(note, velocity, channel);
   OSCSendNoteOn(note, velocity, channel);
-  leds_update(midi::NoteOn, channel, note, velocity);
   if (IS_SHOW_ENABLED(interfaces[PED_DINMIDI].midiIn)) screen_info(midi::NoteOn, note, velocity, channel);
 }
 
@@ -32,7 +31,6 @@ void OnSerialMidiNoteOff(byte channel, byte note, byte velocity)
   ipMIDISendNoteOff(note, velocity, channel);
   AppleMidiSendNoteOff(note, velocity, channel);
   OSCSendNoteOff(note, velocity, channel);
-  leds_update(midi::NoteOff, channel, note, velocity);
   if (IS_SHOW_ENABLED(interfaces[PED_DINMIDI].midiIn)) screen_info(midi::NoteOff, note, velocity, channel);
 }
 
@@ -57,7 +55,6 @@ void OnSerialMidiControlChange(byte channel, byte number, byte value)
   ipMIDISendControlChange(number, value, channel);
   AppleMidiSendControlChange(number, value, channel);
   OSCSendControlChange(number, value, channel);
-  leds_update(midi::ControlChange, channel, number, value);
   if (IS_SHOW_ENABLED(interfaces[PED_DINMIDI].midiIn)) screen_info(midi::ControlChange, number, value, channel);
   switch_profile_or_bank(channel, number, value);
   incoming_actions_run(midi::ControlChange, channel, number, value);
@@ -72,7 +69,6 @@ void OnSerialMidiProgramChange(byte channel, byte number)
   ipMIDISendProgramChange(number, channel);
   AppleMidiSendProgramChange(number, channel);
   OSCSendProgramChange(number, channel);
-  leds_update(midi::ProgramChange, channel, number, 0);
   if (IS_SHOW_ENABLED(interfaces[PED_DINMIDI].midiIn)) screen_info(midi::ProgramChange, number, 0, channel);
   incoming_actions_run(midi::ProgramChange, channel, number, 0);
 }

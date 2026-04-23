@@ -65,6 +65,23 @@ inline void set_last_pedal_name_label(const char* label, bool overwrite = false)
   }
 }
 
+inline const char* preferred_action_overlay_label(action* act, byte event)
+{
+  if (act == nullptr) return "";
+
+  const bool hasTagOff = act->tag0[0] != 0;
+  const bool hasTagOn  = act->tag1[0] != 0;
+
+  if (hasTagOff && hasTagOn) {
+    return event == PED_EVENT_RELEASE ? act->tag0 : act->tag1;
+  }
+
+  if (hasTagOn)  return act->tag1;
+  if (hasTagOff) return act->tag0;
+
+  return "";
+}
+
 unsigned int map_analog(byte p, unsigned int value)
 {
   p = constrain(p, 0, PEDALS - 1);
@@ -1169,7 +1186,7 @@ void fire_action(action* act, byte p, byte i, byte e)
           lastUsedPedal = p;
           lastUsed = p;
           lastSlot = act->slot;
-          set_last_pedal_name_label(act->name);
+          set_last_pedal_name_label(preferred_action_overlay_label(act, e));
           DPRINT("Action %s....", act->name);
           switch (act->midiMessage) {
             case PED_EMPTY:
@@ -1779,9 +1796,7 @@ void controller_event_handler_analog(byte pedal, byte button, int value)
           lastUsedPedal = pedal;
           lastUsed = pedal;
           lastSlot = act->slot;
-          if (act->midiMessage != PED_EMPTY ||
-              act->midiMessage != PED_ACTION_REPEAT ||
-              act->midiMessage != PED_ACTION_REPEAT_OVERWRITE) set_last_pedal_name_label(act->name);
+          set_last_pedal_name_label(preferred_action_overlay_label(act, act->event));
           DPRINT("Action: %s\n", act->name);
           switch (act->midiMessage) {
             case PED_ACTION_REPEAT:
@@ -2276,7 +2291,7 @@ void controller_run(bool send = true)
                     lastUsedPedal = i;
                     lastUsed = i;
                     lastSlot = act->slot;
-                    set_last_pedal_name_label(act->name, true);
+                    set_last_pedal_name_label(preferred_action_overlay_label(act, act->event), true);
                     break;
 
                   case PED_ACTION_BANK_PLUS:

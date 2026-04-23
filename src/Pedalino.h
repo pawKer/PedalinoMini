@@ -41,7 +41,7 @@ __________           .___      .__  .__                 _____  .__       .__    
 #define MAXBANKNAME      16
 #define MAXSEQUENCENAME  16
 #define INCOMING_TRIGGERS_MAX        64
-#define INCOMING_TRIGGER_ACTIONS_MAX 4
+#define INCOMING_TRIGGER_ACTIONS_MAX 8
 
 #define INCOMING_VALUE_ANY    0
 #define INCOMING_VALUE_EXACT  1
@@ -669,6 +669,11 @@ void   http_setup();
 
 int m1, m2, m3, m4, rmin, rmax;
 unsigned long endMillis2 = 0;
+
+inline bool named_overlay_is_active()
+{
+  return lastPedalName[0] != 0 && lastPedalName[0] != ':' && millis() < endMillis2;
+}
 
 void screen_info(int b1, int b2, int b3, int b4, int mi = 0, int ma = MIDI_RESOLUTION - 1)
 {

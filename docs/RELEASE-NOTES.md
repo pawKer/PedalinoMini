@@ -41,6 +41,16 @@
   - Improved cell text fitting/wrapping logic.
 
 ## Unreleased (working tree, not yet committed)
+- Incoming MIDI no longer auto-updates LEDs by matching received Note/CC/PC messages against ordinary Actions:
+  - Removed the implicit receive-side `leds_update(...)` behavior from USB/DIN/BLE/RTP/ipMIDI input handlers.
+  - LED changes from received MIDI now require explicit configuration through `IncomingTriggers` / the Incoming Actions page.
+- Incoming MIDI trigger groups now round-trip consistently through config JSON:
+  - Empty trigger groups created on `/incoming-actions` are preserved on JSON import/load instead of being silently dropped.
+- `Show Incoming` now correctly controls incoming MIDI message overlays on the device display:
+  - Removed an unintended `screen_info(...)` call from the shared `DPRINTMIDI` debug path that was bypassing the per-interface `Show Incoming` setting.
+- Overlay label selection again prefers configured action tags over the generic MIDI message overlay:
+  - Single-tag actions now use the defined tag even when the control has multiple actions.
+  - Press/release overlay fallback now chooses tags first before falling back to the generic CC/PC/note overlay.
 - LilyGO T-Display S3 DIN MIDI pins were split so hardware serial no longer reuses GPIO 1 for both directions:
   - `DIN_MIDI_OUT_PIN = GPIO 1`
   - `DIN_MIDI_IN_PIN = GPIO 2`
@@ -52,7 +62,7 @@
 - Incoming MIDI Actions V2 (grouped triggers) has been implemented locally but is currently uncommitted:
   - Data model upgraded from flat rules to grouped triggers:
     - `INCOMING_TRIGGERS_MAX=64`
-    - `INCOMING_TRIGGER_ACTIONS_MAX=4`
+    - `INCOMING_TRIGGER_ACTIONS_MAX=8`
     - `incomingTriggers[]` + `incomingTriggerCount`
   - One incoming CC/PC trigger can now execute multiple actions in stored order.
   - Dispatcher keeps existing precedence and now executes action chains per matched trigger group.
@@ -61,6 +71,9 @@
     - JSON: `IncomingTriggers`
     - NVS: `InTriggers`, `InTrigCnt`
   - Legacy flat `IncomingActions` is treated as manual migration only (warning shown, no auto-convert).
+- Incoming MIDI trigger groups now support up to 8 actions per trigger:
+  - This enables fuller device-state fan-out from one incoming message, such as syncing multiple LEDs and display slots together.
 
 ## Validation
 - Latest verified build: `pio run -e lilygo-t-display-s3` (success).
+- Fixed a LilyGO T-Display S3 overlay regression where a named action overlay such as `Clean`, `Crunch`, or `Lead` could be replaced by a generic incoming MIDI CC overlay when the target device immediately echoed the same MIDI message back.

@@ -40,11 +40,12 @@ void printMIDI(const char *interface, midi::StatusByte status, const byte *data)
     case midi::ProgramChange:
     case midi::PitchBend:
     case midi::AfterTouchChannel:
-      lastUsed         = 0;
-      lastUsedPedal    = 0;
-      lastSlot         = SLOTS;
-      lastPedalName[0] = 0;
-      screen_info(type, data[0], data[1], channel);
+      if (!named_overlay_is_active()) {
+        lastUsed         = 0;
+        lastUsedPedal    = 0;
+        lastSlot         = SLOTS;
+        lastPedalName[0] = 0;
+      }
       break;
 
     default:
@@ -187,7 +188,6 @@ void OnAppleMidiNoteOn(byte channel, byte note, byte velocity)
   BLESendNoteOn(note, velocity, channel);
   ipMIDISendNoteOn(note, velocity, channel);
   OSCSendNoteOn(note, velocity, channel);
-  leds_update(midi::NoteOn, channel, note, velocity);
   if (IS_SHOW_ENABLED(interfaces[PED_RTPMIDI].midiIn)) screen_info(midi::NoteOn, note, velocity, channel);
 }
 
@@ -200,7 +200,6 @@ void OnAppleMidiNoteOff(byte channel, byte note, byte velocity)
   BLESendNoteOff(note, velocity, channel);
   ipMIDISendNoteOff(note, velocity, channel);
   OSCSendNoteOff(note, velocity, channel);
-  leds_update(midi::NoteOff, channel, note, velocity);
   if (IS_SHOW_ENABLED(interfaces[PED_RTPMIDI].midiIn)) screen_info(midi::NoteOff, note, velocity, channel);
 }
 
@@ -225,7 +224,6 @@ void OnAppleMidiReceiveControlChange(byte channel, byte number, byte value)
   BLESendControlChange(number, value, channel);
   ipMIDISendControlChange(number, value, channel);
   OSCSendControlChange(number, value, channel);
-  leds_update(midi::ControlChange, channel, number, value);
   if (IS_SHOW_ENABLED(interfaces[PED_RTPMIDI].midiIn)) screen_info(midi::ControlChange, number, value, channel);
   switch_profile_or_bank(channel, number, value);
   incoming_actions_run(midi::ControlChange, channel, number, value);
@@ -239,7 +237,6 @@ void OnAppleMidiReceiveProgramChange(byte channel, byte number)
   if (interfaces[PED_DINMIDI].midiOut) DIN_MIDI.sendProgramChange(number, channel);
   BLESendProgramChange(number, channel);
   OSCSendProgramChange(number, channel);
-  leds_update(midi::ProgramChange, channel, number, 0);
   if (IS_SHOW_ENABLED(interfaces[PED_RTPMIDI].midiIn)) screen_info(midi::ProgramChange, number, 0, channel);
   incoming_actions_run(midi::ProgramChange, channel, number, 0);
 }
@@ -438,7 +435,6 @@ void OnIpMidiNoteOn(byte channel, byte note, byte velocity)
   BLESendNoteOn(note, velocity, channel);
   AppleMidiSendNoteOn(note, velocity, channel);
   OSCSendNoteOn(note, velocity, channel);
-  leds_update(midi::NoteOn, channel, note, velocity);
   if (IS_SHOW_ENABLED(interfaces[PED_IPMIDI].midiIn)) screen_info(midi::NoteOn, note, velocity, channel);
 }
 
@@ -451,7 +447,6 @@ void OnIpMidiNoteOff(byte channel, byte note, byte velocity)
   BLESendNoteOff(note, velocity, channel);
   AppleMidiSendNoteOff(note, velocity, channel);
   OSCSendNoteOff(note, velocity, channel);
-  leds_update(midi::NoteOff, channel, note, velocity);
   if (IS_SHOW_ENABLED(interfaces[PED_IPMIDI].midiIn)) screen_info(midi::NoteOff, note, velocity, channel);
 }
 
@@ -476,7 +471,6 @@ void OnIpMidiReceiveControlChange(byte channel, byte number, byte value)
   BLESendControlChange(number, value, channel);
   AppleMidiSendControlChange(number, value, channel);
   OSCSendControlChange(number, value, channel);
-  leds_update(midi::ControlChange, channel, number, value);
   if (IS_SHOW_ENABLED(interfaces[PED_IPMIDI].midiIn)) screen_info(midi::ControlChange, number, value, channel);
   switch_profile_or_bank(channel, number, value);
   incoming_actions_run(midi::ControlChange, channel, number, value);
@@ -490,7 +484,6 @@ void OnIpMidiReceiveProgramChange(byte channel, byte number)
   if (interfaces[PED_DINMIDI].midiOut) DIN_MIDI.sendProgramChange(number, channel);
   BLESendProgramChange(number, channel);
   OSCSendProgramChange(number, channel);
-  leds_update(midi::ProgramChange, channel, number, 0);
   if (IS_SHOW_ENABLED(interfaces[PED_IPMIDI].midiIn)) screen_info(midi::ProgramChange, number, 0, channel);
   incoming_actions_run(midi::ProgramChange, channel, number, 0);
 }

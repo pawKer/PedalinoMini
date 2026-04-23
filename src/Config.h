@@ -893,9 +893,7 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
             }
           }
 
-          if (trigger->actionCount > 0) {
-            incomingTriggerCount++;
-          }
+          incomingTriggerCount++;
         }
       }
     }
