@@ -16,7 +16,7 @@ Locked behavior:
 #### Runtime Model
 - Deterministic capacities:
   - `INCOMING_TRIGGERS_MAX = 64`
-  - `INCOMING_TRIGGER_ACTIONS_MAX = 4`
+  - `INCOMING_TRIGGER_ACTIONS_MAX = 8`
 - Runtime storage:
   - `incomingTrigger incomingTriggers[INCOMING_TRIGGERS_MAX]`
   - `byte incomingTriggerCount`
