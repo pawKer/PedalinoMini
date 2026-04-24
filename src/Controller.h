@@ -583,47 +583,140 @@ void switch_profile_or_bank(byte channel, byte number, byte value) {
   }
 }
 
+void incoming_actions_clear(byte bank)
+{
+  bank = constrain(bank, 0, BANKS - 1);
+  if (incomingTriggers[bank] != nullptr) {
+    free(incomingTriggers[bank]);
+    incomingTriggers[bank] = nullptr;
+  }
+  incomingTriggerCount[bank] = 0;
+}
+
+void incoming_actions_clear_all()
+{
+  for (byte bank = 0; bank < BANKS; bank++) incoming_actions_clear(bank);
+}
+
+incomingTrigger *incoming_actions_resize(byte bank, byte count)
+{
+  bank = constrain(bank, 0, BANKS - 1);
+  count = constrain(count, 0, INCOMING_TRIGGERS_MAX);
+
+  byte oldCount = incomingTriggerCount[bank];
+  if (count == 0) {
+    incoming_actions_clear(bank);
+    return nullptr;
+  }
+
+  incomingTrigger *resized = (incomingTrigger*)realloc(incomingTriggers[bank], sizeof(incomingTrigger) * count);
+  assert(resized != nullptr);
+  if (resized == nullptr) return nullptr;
+
+  if (count > oldCount) {
+    memset(&resized[oldCount], 0, sizeof(incomingTrigger) * (count - oldCount));
+  }
+
+  incomingTriggers[bank] = resized;
+  incomingTriggerCount[bank] = count;
+  return incomingTriggers[bank];
+}
+
+bool incoming_actions_copy(byte sourceBank, byte destinationBank)
+{
+  sourceBank = constrain(sourceBank, 0, BANKS - 1);
+  destinationBank = constrain(destinationBank, 0, BANKS - 1);
+
+  if (sourceBank == destinationBank) return true;
+
+  byte sourceCount = incomingTriggerCount[sourceBank];
+  if (sourceCount == 0) {
+    incoming_actions_clear(destinationBank);
+    return true;
+  }
+
+  incomingTrigger *destination = incoming_actions_resize(destinationBank, sourceCount);
+  if (destination == nullptr) return false;
+
+  memcpy(destination, incomingTriggers[sourceBank], sizeof(incomingTrigger) * sourceCount);
+  return true;
+}
+
+byte incoming_actions_total_triggers(byte bank)
+{
+  bank = constrain(bank, 0, BANKS - 1);
+  return incomingTriggerCount[bank];
+}
+
+uint16_t incoming_actions_total_actions(byte bank)
+{
+  bank = constrain(bank, 0, BANKS - 1);
+  uint16_t total = 0;
+  incomingTrigger *triggers = incomingTriggers[bank];
+  for (byte i = 0; i < incomingTriggerCount[bank] && triggers != nullptr; i++) {
+    total += min((int)triggers[i].actionCount, (int)INCOMING_TRIGGER_ACTIONS_MAX);
+  }
+  return total;
+}
+
+incomingTrigger *incoming_actions_at(byte bank, byte index)
+{
+  bank = constrain(bank, 0, BANKS - 1);
+  if (incomingTriggers[bank] == nullptr) return nullptr;
+  if (index >= incomingTriggerCount[bank]) return nullptr;
+  return &incomingTriggers[bank][index];
+}
+
 void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2)
 {
   if (midiType != midi::ControlChange && midiType != midi::ProgramChange) return;
 
-  for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
-    incomingTrigger *trigger = &incomingTriggers[i];
+  auto run_bank = [&](byte bank) {
+    bank = constrain(bank, 0, BANKS - 1);
+    incomingTrigger *triggers = incomingTriggers[bank];
+    if (triggers == nullptr) return;
 
-    if (trigger->triggerType != midiType) continue;
-    if (trigger->channel != 17 && trigger->channel != channel) continue;
-    if (trigger->number != data1) continue;
-    if (midiType == midi::ControlChange && trigger->valueMode == INCOMING_VALUE_EXACT && trigger->value != data2) continue;
+    for (byte i = 0; i < incomingTriggerCount[bank] && i < INCOMING_TRIGGERS_MAX; i++) {
+      incomingTrigger *trigger = &triggers[i];
 
-    for (byte a = 0; a < trigger->actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
-      incomingTargetAction *target = &trigger->actions[a];
-      switch (target->targetAction) {
-        case PED_ACTION_LED_COLOR: {
-          byte led = constrain(target->led, 1, LEDS) - 1;
-          CRGB c = (CRGB)(target->color & 0xFFFFFF);
-          fastleds[led] = swap_rgb_order(c, rgbOrder);
-          fastleds[LEDS] = CRGB::Black;
-          FastLED.show();
-          lastLedColor[currentBank][led] = fastleds[led];
-          break;
+      if (trigger->triggerType != midiType) continue;
+      if (trigger->channel != 17 && trigger->channel != channel) continue;
+      if (trigger->number != data1) continue;
+      if (midiType == midi::ControlChange && trigger->valueMode == INCOMING_VALUE_EXACT && trigger->value != data2) continue;
+
+      for (byte a = 0; a < trigger->actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
+        incomingTargetAction *target = &trigger->actions[a];
+        switch (target->targetAction) {
+          case PED_ACTION_LED_COLOR: {
+            byte led = constrain(target->led, 1, LEDS) - 1;
+            CRGB c = (CRGB)(target->color & 0xFFFFFF);
+            fastleds[led] = swap_rgb_order(c, rgbOrder);
+            fastleds[LEDS] = CRGB::Black;
+            FastLED.show();
+            lastLedColor[currentBank][led] = fastleds[led];
+            break;
+          }
+          case PED_ACTION_SET_SLOT_STATE: {
+            byte slot = constrain(target->slot, 1, SLOTS) - 1;
+            set_slot_display_state(currentBank, slot, constrain(target->state, 0, 1) == 1);
+            break;
+          }
+          case PED_ACTION_BANK: {
+            currentBank = constrain(target->bank, 1, BANKS - 1);
+            reset_slot_display_state(currentBank);
+            update_current_step();
+            leds_refresh();
+            break;
+          }
+          default:
+            break;
         }
-        case PED_ACTION_SET_SLOT_STATE: {
-          byte slot = constrain(target->slot, 1, SLOTS) - 1;
-          set_slot_display_state(currentBank, slot, constrain(target->state, 0, 1) == 1);
-          break;
-        }
-        case PED_ACTION_BANK: {
-          currentBank = constrain(target->bank, 1, BANKS - 1);
-          reset_slot_display_state(currentBank);
-          update_current_step();
-          leds_refresh();
-          break;
-        }
-        default:
-          break;
       }
     }
-  }
+  };
+
+  run_bank(0);
+  if (currentBank != 0) run_bank(currentBank);
 }
 //
 //

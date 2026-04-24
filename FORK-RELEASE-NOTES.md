@@ -10,7 +10,8 @@
 5. `a5cb5ca` (2026-04-23) - Map MIDI in pin to a separate unused pedal pin
 6. `e9c40af` (2026-04-23) - Fixing MIDI in actions + display, fixing tags display correctly
 7. `6dcd6cf` (2026-04-23) - Update feature doc
-8. `TBD` - Pending local documentation/workflow updates
+8. `TBD` - Per-bank incoming MIDI actions
+9. `TBD` - Pending local documentation/workflow updates
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -49,6 +50,14 @@
 ### `6dcd6cf` - Feature doc update
 - Updated the incoming MIDI Actions feature doc to reflect the latest behavior.
 
+### `TBD` - Per-bank incoming MIDI actions
+- Changed incoming MIDI trigger groups from one profile-wide ruleset to bank-scoped rules using `Global` bank `0` plus banks `1..20`.
+- Updated runtime dispatch so incoming MIDI evaluates `Global` rules first, then the current bank, and can continue into the newly selected bank when a global trigger performs `Set Bank`.
+- Added sparse per-bank incoming-trigger storage in RAM plus per-bank NVS persistence keys, while migrating older grouped `IncomingTriggers` entries without a trigger-level `Bank` into `Global`.
+- Updated `/incoming-actions` to select and edit one bank at a time and added a `Duplicate Bank To` dropdown that replaces the destination bank's incoming rules.
+- Updated JSON/schema support so each `IncomingTriggers` entry persists its owning bank.
+- Compatibility note: legacy flat `IncomingActions` still requires manual recreation, but prior grouped `IncomingTriggers` configs now load into `Global` automatically when their trigger-level `Bank` field is missing.
+
 
 ## Validation
-- Latest verified build: `pio run -e lilygo-t-display-s3` (success).
+- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-04-24, worktree `feature/per-bank-incoming-midi-actions`).

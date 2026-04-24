@@ -471,8 +471,8 @@ control   controls[CONTROLS];                     // Controls Setup
 uint32_t  slotBorderColor[SLOTS];                 // Per-slot UI border color (0xRRGGBB)
 message   sequences[SEQUENCES][STEPS];            // Sequences Setup
 char      sequenceNames[SEQUENCES][MAXSEQUENCENAME+1];
-incomingTrigger incomingTriggers[INCOMING_TRIGGERS_MAX];
-byte      incomingTriggerCount = 0;
+incomingTrigger *incomingTriggers[BANKS] = {nullptr};
+byte      incomingTriggerCount[BANKS] = {0};
 bool      incomingLegacyRulesDetected = false;
 byte      currentMIDIValue[BANKS][PEDALS][LADDER_STEPS];
 message   lastMIDIMessage[BANKS];
@@ -662,6 +662,13 @@ extern AsyncEventSource events;
 
 void   controller_delete();
 void   delete_actions();
+void   incoming_actions_clear(byte bank);
+void   incoming_actions_clear_all();
+incomingTrigger *incoming_actions_resize(byte bank, byte count);
+bool   incoming_actions_copy(byte sourceBank, byte destinationBank);
+byte   incoming_actions_total_triggers(byte bank);
+uint16_t incoming_actions_total_actions(byte bank);
+incomingTrigger *incoming_actions_at(byte bank, byte index);
 void   sort_actions();
 void   create_banks();
 void   wifi_connect();

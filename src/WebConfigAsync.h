@@ -3347,15 +3347,63 @@ void get_display_page(unsigned int start, unsigned int len) {
 }
 
 void get_incoming_actions_page(unsigned int start, unsigned int len) {
+  const byte b = constrain(uibank.toInt(), 0, BANKS - 1);
+  incomingTrigger *bankTriggers = incomingTriggers[b];
+  const byte triggerCount = incomingTriggerCount[b];
+  const uint16_t totalActions = incoming_actions_total_actions(b);
+
+  auto append_bank_label = [&](byte bank) {
+    if (bank == 0) {
+      page += F("Global");
+    }
+    else if (String(banknames[bank]).isEmpty()) {
+      page += bank;
+    }
+    else {
+      page += banknames[bank];
+    }
+  };
 
   if (get_top_page(10, start, len)) return;
 
-  uint16_t totalActions = 0;
-  for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
-    totalActions += min((int)incomingTriggers[i].actionCount, (int)INCOMING_TRIGGER_ACTIONS_MAX);
+  page += F("<div class='card h-100 mb-3'>");
+  page += F("<div class='card-header'>");
+  page += F("<div class='row g-2 align-items-center'>");
+  page += F("<div class='col-auto me-auto'><strong>Bank</strong></div>");
+  page += F("<div class='col-auto text-secondary small'>Select the bank whose incoming rules you want to edit</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("<div class='card-body'>");
+  page += F("<form method='get'>");
+  page += F("<div class='container g-0'>");
+  page += F("<div class='row g-0'>");
+
+  for (byte i = 0; i < BANKS; i++) {
+    page += F("<div class='col text-center g-0'>");
+    page += F("<button type='button submit' class='btn btn-sm btn-block");
+    page += (uibank == String(i) ? F(" btn-primary") : F(""));
+    page += F("' name='bank' value='");
+    page += i;
+    page += F("'>");
+    append_bank_label(i);
+    page += F("</button>");
+    page += F("</div>");
+
+    if (trim_page(start, len)) return;
   }
 
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</form>");
+  page += F("</div>");
+  page += F("</div>");
+
+  if (trim_page(start, len)) return;
+
   page += F("<form method='post'>");
+  page += F("<input type='hidden' name='bank' value='");
+  page += b;
+  page += F("'>");
   page += F("<div class='card mb-3'>");
   page += F("<div class='card-header'>");
   page += F("<div class='row g-2 align-items-center'>");
@@ -3369,12 +3417,30 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
   page += F("</h5>");
   page += F("</div>");
   page += F("<div class='col-auto text-secondary small'>");
-  page += incomingTriggerCount;
+  append_bank_label(b);
+  page += F(" - ");
+  page += triggerCount;
   page += F(" / ");
   page += INCOMING_TRIGGERS_MAX;
   page += F(" triggers, ");
   page += totalActions;
   page += F(" actions");
+  page += F("</div>");
+  page += F("<div class='col-auto'>");
+  page += F("<div class='btn-group' role='group'>");
+  page += F("<button id='btnGroupCopyIncomingBank' type='button' class='btn btn-outline-primary btn-sm dropdown-toggle' data-bs-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>Duplicate Bank To</button>");
+  page += F("<div class='dropdown-menu' aria-labelledby='btnGroupCopyIncomingBank'>");
+  for (byte i = 0; i < BANKS; i++) {
+    page += F("<button type='submit' class='dropdown-item' name='action' value='copy");
+    page += i;
+    page += F("'>");
+    append_bank_label(i);
+    page += F("</button>");
+
+    if (trim_page(start, len)) return;
+  }
+  page += F("</div>");
+  page += F("</div>");
   page += F("</div>");
   page += F("<div class='col-auto'>");
   page += F("<button type='submit' name='action' value='new-trigger' class='btn btn-outline-primary btn-sm'>Add Trigger</button>");
@@ -3393,12 +3459,12 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     if (trim_page(start, len)) return;
   }
 
-  if (incomingTriggerCount == 0) {
-    page += F("<div class='alert alert-secondary mb-0'>No incoming triggers configured. Use <strong>Add Trigger</strong> to create the first one.</div>");
+  if (triggerCount == 0) {
+    page += F("<div class='alert alert-secondary mb-0'>No incoming triggers configured for this bank. Use <strong>Add Trigger</strong> to create the first one.</div>");
     if (trim_page(start, len)) return;
   }
 
-  for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
+  for (byte i = 0; i < triggerCount && bankTriggers != nullptr && i < INCOMING_TRIGGERS_MAX; i++) {
     const byte triggerIdx = i + 1;
     page += F("<div class='card mb-2'>");
     page += F("<div class='card-header py-2'>");
@@ -3407,7 +3473,7 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     page += triggerIdx;
     page += F("</strong></div>");
     page += F("<div class='col-auto text-secondary small'>");
-    page += incomingTriggers[i].actionCount;
+    page += bankTriggers[i].actionCount;
     page += F(" / ");
     page += INCOMING_TRIGGER_ACTIONS_MAX;
     page += F(" actions</div>");
@@ -3434,12 +3500,12 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     page += F("<option value='");
     page += PED_CONTROL_CHANGE;
     page += F("'");
-    if (incomingTriggers[i].triggerType == PED_CONTROL_CHANGE) page += F(" selected");
+    if (bankTriggers[i].triggerType == PED_CONTROL_CHANGE) page += F(" selected");
     page += F(">Control Change</option>");
     page += F("<option value='");
     page += PED_PROGRAM_CHANGE;
     page += F("'");
-    if (incomingTriggers[i].triggerType == PED_PROGRAM_CHANGE) page += F(" selected");
+    if (bankTriggers[i].triggerType == PED_PROGRAM_CHANGE) page += F(" selected");
     page += F(">Program Change</option>");
     page += F("</select></div>");
 
@@ -3450,7 +3516,7 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
       page += F("<option value='");
       page += ch;
       page += F("'");
-      if (incomingTriggers[i].channel == ch) page += F(" selected");
+      if (bankTriggers[i].channel == ch) page += F(" selected");
       page += F(">");
       if (ch == 17) page += F("Any");
       else page += ch;
@@ -3461,7 +3527,7 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     page += F("<div class='col-6 col-md-4 col-lg-2'><label class='form-label mb-1'>Number</label><input class='form-control' type='number' min='0' max='127' name='trig-number-");
     page += triggerIdx;
     page += F("' value='");
-    page += incomingTriggers[i].number;
+    page += bankTriggers[i].number;
     page += F("'></div>");
 
     page += F("<div class='col-6 col-md-4 col-lg-2'><label class='form-label mb-1'>Value Mode</label><select class='form-select' id='inValueMode");
@@ -3472,12 +3538,12 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     page += F("<option value='");
     page += INCOMING_VALUE_ANY;
     page += F("'");
-    if (incomingTriggers[i].valueMode == INCOMING_VALUE_ANY) page += F(" selected");
+    if (bankTriggers[i].valueMode == INCOMING_VALUE_ANY) page += F(" selected");
     page += F(">Any</option>");
     page += F("<option value='");
     page += INCOMING_VALUE_EXACT;
     page += F("'");
-    if (incomingTriggers[i].valueMode == INCOMING_VALUE_EXACT) page += F(" selected");
+    if (bankTriggers[i].valueMode == INCOMING_VALUE_EXACT) page += F(" selected");
     page += F(">Exact</option>");
     page += F("</select></div>");
 
@@ -3486,19 +3552,19 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     page += F("'><label class='form-label mb-1'>Value</label><input class='form-control' type='number' min='0' max='127' name='trig-value-");
     page += triggerIdx;
     page += F("' value='");
-    page += incomingTriggers[i].value;
+    page += bankTriggers[i].value;
     page += F("'></div>");
 
     page += F("</div>");
     page += F("<hr>");
     page += F("<h6 class='mb-2'>Actions</h6>");
 
-    if (incomingTriggers[i].actionCount == 0) {
+    if (bankTriggers[i].actionCount == 0) {
       page += F("<div class='alert alert-secondary mb-2'>This trigger has no actions. Use <strong>Add Action</strong>.</div>");
       if (trim_page(start, len)) return;
     }
 
-    for (byte a = 0; a < incomingTriggers[i].actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
+    for (byte a = 0; a < bankTriggers[i].actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
       const byte actionIdx = a + 1;
       page += F("<div class='border rounded p-2 mb-2'>");
       page += F("<div class='row g-2 align-items-end'>");
@@ -3514,17 +3580,17 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
       page += F("<option value='");
       page += PED_ACTION_LED_COLOR;
       page += F("'");
-      if (incomingTriggers[i].actions[a].targetAction == PED_ACTION_LED_COLOR) page += F(" selected");
+      if (bankTriggers[i].actions[a].targetAction == PED_ACTION_LED_COLOR) page += F(" selected");
       page += F(">Set Led Color</option>");
       page += F("<option value='");
       page += PED_ACTION_SET_SLOT_STATE;
       page += F("'");
-      if (incomingTriggers[i].actions[a].targetAction == PED_ACTION_SET_SLOT_STATE) page += F(" selected");
+      if (bankTriggers[i].actions[a].targetAction == PED_ACTION_SET_SLOT_STATE) page += F(" selected");
       page += F(">Set Slot State</option>");
       page += F("<option value='");
       page += PED_ACTION_BANK;
       page += F("'");
-      if (incomingTriggers[i].actions[a].targetAction == PED_ACTION_BANK) page += F(" selected");
+      if (bankTriggers[i].actions[a].targetAction == PED_ACTION_BANK) page += F(" selected");
       page += F(">Set Bank</option>");
       page += F("</select></div>");
 
@@ -3542,14 +3608,14 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
         page += F("<option value='");
         page += l;
         page += F("'");
-        if (incomingTriggers[i].actions[a].led == l) page += F(" selected");
+        if (bankTriggers[i].actions[a].led == l) page += F(" selected");
         page += F(">");
         page += l;
         page += F("</option>");
       }
       page += F("</select></div>");
       char color[8];
-      snprintf(color, 8, "#%06x", incomingTriggers[i].actions[a].color & 0xFFFFFF);
+      snprintf(color, 8, "#%06x", bankTriggers[i].actions[a].color & 0xFFFFFF);
       page += F("<div class='col-6'><label class='form-label mb-1'>Color</label><input class='form-control form-control-color w-100' type='color' name='act-color-");
       page += triggerIdx;
       page += F("-");
@@ -3572,7 +3638,7 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
         page += F("<option value='");
         page += s;
         page += F("'");
-        if (incomingTriggers[i].actions[a].slot == s) page += F(" selected");
+        if (bankTriggers[i].actions[a].slot == s) page += F(" selected");
         page += F(">");
         page += s;
         page += F("</option>");
@@ -3589,10 +3655,10 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
       page += actionIdx;
       page += F("'>");
       page += F("<option value='0'");
-      if (incomingTriggers[i].actions[a].state == 0) page += F(" selected");
+      if (bankTriggers[i].actions[a].state == 0) page += F(" selected");
       page += F(">0</option>");
       page += F("<option value='1'");
-      if (incomingTriggers[i].actions[a].state == 1) page += F(" selected");
+      if (bankTriggers[i].actions[a].state == 1) page += F(" selected");
       page += F(">1</option>");
       page += F("</select></div>");
 
@@ -3605,13 +3671,13 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
       page += F("-");
       page += actionIdx;
       page += F("'>");
-      for (byte b = 1; b < BANKS; b++) {
+      for (byte targetBank = 1; targetBank < BANKS; targetBank++) {
         page += F("<option value='");
-        page += b;
+        page += targetBank;
         page += F("'");
-        if (incomingTriggers[i].actions[a].bank == b) page += F(" selected");
+        if (bankTriggers[i].actions[a].bank == targetBank) page += F(" selected");
         page += F(">");
-        page += b;
+        append_bank_label(targetBank);
         page += F("</option>");
       }
       page += F("</select></div>");
@@ -3674,7 +3740,7 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
   page += F(")?'':'none';");
   page += F("}");
   page += F("document.addEventListener('DOMContentLoaded',function(){");
-  for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
+  for (byte i = 0; i < triggerCount && bankTriggers != nullptr && i < INCOMING_TRIGGERS_MAX; i++) {
     const byte triggerIdx = i + 1;
     page += F("incomingTriggerRefresh(");
     page += triggerIdx;
@@ -3701,7 +3767,7 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     page += F(".addEventListener('change',function(){incomingTriggerRefresh(");
     page += triggerIdx;
     page += F(");});");
-    for (byte a = 0; a < incomingTriggers[i].actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
+    for (byte a = 0; a < bankTriggers[i].actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
       const byte actionIdx = a + 1;
       page += F("incomingActionRefresh(");
       page += triggerIdx;
@@ -6113,6 +6179,7 @@ void http_handle_display(AsyncWebServerRequest *request) {
 void http_handle_incoming_actions(AsyncWebServerRequest *request) {
   if (!httpUsername.isEmpty() && !request->authenticate(httpUsername.c_str(), httpPassword.c_str())) return request->requestAuthentication();
   http_handle_globals(request);
+  if (request->hasArg("bank")) uibank = request->arg("bank");
   AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_incoming_actions_page_chunked);
   response->addHeader("Connection", "close");
   request->send(response);
@@ -6549,6 +6616,8 @@ void http_handle_post_display(AsyncWebServerRequest *request) {
 void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
 
   String a;
+  if (request->hasArg("bank")) uibank = request->arg("bank");
+  const byte b = constrain(uibank.toInt(), 0, BANKS - 1);
   String command = request->arg("action");
 
   auto set_default_target = [](incomingTargetAction *target) {
@@ -6572,25 +6641,47 @@ void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
   };
 
   if (command.equals("new-trigger")) {
-    if (incomingTriggerCount < INCOMING_TRIGGERS_MAX) {
-      set_default_trigger(&incomingTriggers[incomingTriggerCount]);
-      incomingTriggerCount++;
-      alert = "";
-      alertError = "";
+    byte triggerCount = incomingTriggerCount[b];
+    if (triggerCount < INCOMING_TRIGGERS_MAX) {
+      incomingTrigger *bankTriggers = incoming_actions_resize(b, triggerCount + 1);
+      if (bankTriggers == nullptr) {
+        alertError = F("Cannot add trigger. Out of memory.");
+      }
+      else {
+        set_default_trigger(&bankTriggers[triggerCount]);
+        alert = "";
+        alertError = "";
+      }
     }
     else {
       alertError = F("Cannot add trigger. Maximum number of incoming triggers reached.");
     }
   }
+  else if (command.startsWith("copy")) {
+    byte destination = constrain(command.substring(4).toInt(), 0, BANKS - 1);
+    if (incoming_actions_copy(b, destination)) {
+      alert = "";
+      alertError = "";
+      alert = F("Incoming MIDI actions copied.");
+    }
+    else {
+      alertError = F("Cannot copy incoming MIDI actions. Out of memory.");
+    }
+  }
   else if (command.startsWith("delete-trigger")) {
+    byte triggerCount = incomingTriggerCount[b];
     byte idx = constrain(command.substring(14).toInt(), 1, INCOMING_TRIGGERS_MAX);
-    if (idx >= 1 && idx <= incomingTriggerCount) {
-      for (byte i = idx - 1; i + 1 < incomingTriggerCount; i++) {
-        incomingTriggers[i] = incomingTriggers[i + 1];
+    if (idx >= 1 && idx <= triggerCount) {
+      incomingTrigger *bankTriggers = incomingTriggers[b];
+      for (byte i = idx - 1; i + 1 < triggerCount; i++) {
+        bankTriggers[i] = bankTriggers[i + 1];
       }
-      if (incomingTriggerCount > 0) incomingTriggerCount--;
-      if (incomingTriggerCount < INCOMING_TRIGGERS_MAX) {
-        memset(&incomingTriggers[incomingTriggerCount], 0, sizeof(incomingTrigger));
+      triggerCount--;
+      if (triggerCount > 0) {
+        incoming_actions_resize(b, triggerCount);
+      }
+      else {
+        incoming_actions_clear(b);
       }
       alert = F("Trigger group deleted.");
       alertError = "";
@@ -6598,8 +6689,8 @@ void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
   }
   else if (command.startsWith("new-action")) {
     byte triggerIdx = constrain(command.substring(10).toInt(), 1, INCOMING_TRIGGERS_MAX);
-    if (triggerIdx >= 1 && triggerIdx <= incomingTriggerCount) {
-      incomingTrigger *trigger = &incomingTriggers[triggerIdx - 1];
+    if (triggerIdx >= 1 && triggerIdx <= incomingTriggerCount[b]) {
+      incomingTrigger *trigger = &incomingTriggers[b][triggerIdx - 1];
       trigger->actionCount = constrain(trigger->actionCount, 0, INCOMING_TRIGGER_ACTIONS_MAX);
       if (trigger->actionCount < INCOMING_TRIGGER_ACTIONS_MAX) {
         set_default_target(&trigger->actions[trigger->actionCount]);
@@ -6618,8 +6709,8 @@ void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
     if (dash > 0) {
       byte triggerIdx = constrain(ids.substring(0, dash).toInt(), 1, INCOMING_TRIGGERS_MAX);
       byte actionIdx = constrain(ids.substring(dash + 1).toInt(), 1, INCOMING_TRIGGER_ACTIONS_MAX);
-      if (triggerIdx >= 1 && triggerIdx <= incomingTriggerCount) {
-        incomingTrigger *trigger = &incomingTriggers[triggerIdx - 1];
+      if (triggerIdx >= 1 && triggerIdx <= incomingTriggerCount[b]) {
+        incomingTrigger *trigger = &incomingTriggers[b][triggerIdx - 1];
         trigger->actionCount = constrain(trigger->actionCount, 0, INCOMING_TRIGGER_ACTIONS_MAX);
         if (actionIdx >= 1 && actionIdx <= trigger->actionCount) {
           for (byte i = actionIdx - 1; i + 1 < trigger->actionCount; i++) {
@@ -6636,9 +6727,9 @@ void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
     }
   }
   else if (command.equals("apply") || command.equals("save")) {
-    for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
+    for (byte i = 0; i < incomingTriggerCount[b] && i < INCOMING_TRIGGERS_MAX; i++) {
       byte triggerIdx = i + 1;
-      incomingTrigger *trigger = &incomingTriggers[i];
+      incomingTrigger *trigger = &incomingTriggers[b][i];
 
       a = request->arg(String("trig-type-") + String(triggerIdx));
       trigger->triggerType = a.toInt() == PED_PROGRAM_CHANGE ? PED_PROGRAM_CHANGE : PED_CONTROL_CHANGE;
