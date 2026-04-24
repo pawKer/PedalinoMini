@@ -49,11 +49,6 @@
 ### `6dcd6cf` - Feature doc update
 - Updated the incoming MIDI Actions feature doc to reflect the latest behavior.
 
-### `TBD` - Pending local documentation/workflow updates
-- Added root `AGENTS.md` derived from `docs/AI_CONTEXT.md`.
-- Documented that fork-specific code changes must also update `FORK-RELEASE-NOTES.md`.
-- Added a startup instruction for fresh agents to review release notes before beginning work.
-- Adopted a `TBD` commit placeholder section instead of using an `Unreleased` section in fork release notes.
 
 ## Validation
 - Latest verified build: `pio run -e lilygo-t-display-s3` (success).
