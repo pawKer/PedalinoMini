@@ -11,6 +11,7 @@
 6. `e9c40af` (2026-04-23) - Fixing MIDI in actions + display, fixing tags display correctly
 7. `6dcd6cf` (2026-04-23) - Update feature doc
 8. `TBD` - Pending local documentation/workflow updates
+9. `TBD` - HX Stomp looper bank config refresh
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -49,6 +50,19 @@
 ### `6dcd6cf` - Feature doc update
 - Updated the incoming MIDI Actions feature doc to reflect the latest behavior.
 
+### `TBD` - Pending local documentation/workflow updates
+- Added `ADDITIONAL-CONTEXT.md` at the repository root for persistent user-specific hardware layout notes.
+- Updated `AGENTS.md` to reference `ADDITIONAL-CONTEXT.md` during startup/context gathering.
+- Added slot-to-footswitch mapping and current HX looper bank placement notes to `ADDITIONAL-CONTEXT.md`.
+
+### `TBD` - HX Stomp looper bank config refresh
+- Replaced `Bank 2` (`:HX Looper`) in `current-cfg-230426.cfg` and `new-230426.cfg` with a focused HX Stomp looper layout on `Control 4..6`.
+- Added dedicated looper sequences for `REC/ODUB`, `PLAY/STOP`, and `UNDO/REDO`, and cleared the extra looper sequence slots that were no longer used.
+- Added `Control 3` `Long Press` as a dedicated HX looper `Clear Loop` action (`CC52`) so loop erase stays available without occupying one of the main three transport switches.
+- Removed provisional HX looper incoming trigger rules for now, so Bank 2 currently runs as a local-state looper layout without receive-side sync.
+- Compatibility note: `UNDO/REDO` remains effectively stateless in Pedalino, and the looper labels/slot states will not follow HX changes made from the HX itself or another controller until verified feedback mapping is added.
+
 
 ## Validation
 - Latest verified build: `pio run -e lilygo-t-display-s3` (success).
+- HX looper bank update: config-only change; firmware build not re-run in this session.

@@ -5,6 +5,7 @@ This file is the root-level agent context for `PedalinoMini`.
 ## Startup Checklist
 - Before starting substantive work, review the release notes to pick up the latest fork context:
   - `FORK-RELEASE-NOTES.md` at the repository root is the current release-notes source of truth for this fork.
+- Review `ADDITIONAL-CONTEXT.md` at the repository root for user-specific hardware layout, control-to-LED mapping, and other persistent local context when it is relevant to the task.
 - Review relevant feature docs under `docs/features/` for the area being changed. Not all the features have been implemented yet.
 - Review the latest project snapshot under `docs/project_snapshots/` when it is relevant to the current task but bear in mind the context might be out of date
 
@@ -35,6 +36,7 @@ This file is the root-level agent context for `PedalinoMini`.
 - `images/` - Project images and visual reference assets.
 - `manifest/` - Distribution metadata used for packaged firmware/release flows.
 - `.github/` - Repository automation and GitHub workflow/configuration files.
+- `ADDITIONAL-CONTEXT.md` - User-specific local hardware layout and other persistent working-context notes for this setup.
 - `platformio.ini` - Main PlatformIO build matrix and feature-flag configuration.
 - `FORK-RELEASE-NOTES.md` - Current fork-specific release notes and workflow change log.
 - `README.md` - User-facing project overview and setup guidance.
