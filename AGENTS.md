@@ -127,6 +127,7 @@ Defined mainly in `src/Pedalino.h`:
 - When adding new action or event types, update all four of the surfaces above.
 - Be careful with board-specific pin definitions and ESP32/ESP32-S3 strapping pins.
 - Preserve the memory-conscious patterns already in use, including chunked web page generation and PSRAM-aware JSON allocation.
+- Avoid large stack allocations in boot, profile-load, config-load, and migration paths; prefer existing sparse allocation helpers, checked heap allocation, or static/global storage where appropriate.
 - After any feature or behavior change, update the active release-notes source of truth during the same work session.
   - In the current fork, that file is `FORK-RELEASE-NOTES.md`.
   - Include affected commits or the current placeholder section, user-visible changes, compatibility notes, and validation/build status.

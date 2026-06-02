@@ -463,25 +463,29 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
     }
 
     JsonArray jincomingTriggers = jdoc["IncomingTriggers"].to<JsonArray>();
-    for (byte i = 0; i < incomingTriggerCount && i < INCOMING_TRIGGERS_MAX; i++) {
-      JsonObject trigger = jincomingTriggers.add<JsonObject>();
-      trigger["TriggerType"] = IncomingTriggerEnumToString(incomingTriggers[i].triggerType);
-      trigger["Channel"]     = incomingTriggers[i].channel;
-      trigger["Number"]      = incomingTriggers[i].number;
-      trigger["ValueMode"]   = IncomingValueModeEnumToString(incomingTriggers[i].valueMode);
-      trigger["Value"]       = incomingTriggers[i].value;
+    for (byte b = 0; b < BANKS; b++) {
+      incomingTrigger *bankTriggers = incomingTriggers[b];
+      for (byte i = 0; i < incomingTriggerCount[b] && bankTriggers != nullptr && i < INCOMING_TRIGGERS_MAX; i++) {
+        JsonObject trigger = jincomingTriggers.add<JsonObject>();
+        trigger["Bank"]        = b;
+        trigger["TriggerType"] = IncomingTriggerEnumToString(bankTriggers[i].triggerType);
+        trigger["Channel"]     = bankTriggers[i].channel;
+        trigger["Number"]      = bankTriggers[i].number;
+        trigger["ValueMode"]   = IncomingValueModeEnumToString(bankTriggers[i].valueMode);
+        trigger["Value"]       = bankTriggers[i].value;
 
-      JsonArray jactions = trigger["Actions"].to<JsonArray>();
-      for (byte a = 0; a < incomingTriggers[i].actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
-        char color[8];
-        JsonObject jo = jactions.add<JsonObject>();
-        jo["Action"] = ActionEnumToString(incomingTriggers[i].actions[a].targetAction);
-        jo["Led"]    = incomingTriggers[i].actions[a].led;
-        snprintf(color, 8, "#%06x", incomingTriggers[i].actions[a].color & 0xFFFFFF);
-        jo["Color"]  = color;
-        jo["Slot"]   = incomingTriggers[i].actions[a].slot;
-        jo["State"]  = incomingTriggers[i].actions[a].state;
-        jo["Bank"]   = incomingTriggers[i].actions[a].bank;
+        JsonArray jactions = trigger["Actions"].to<JsonArray>();
+        for (byte a = 0; a < bankTriggers[i].actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
+          char color[8];
+          JsonObject jo = jactions.add<JsonObject>();
+          jo["Action"] = ActionEnumToString(bankTriggers[i].actions[a].targetAction);
+          jo["Led"]    = bankTriggers[i].actions[a].led;
+          snprintf(color, 8, "#%06x", bankTriggers[i].actions[a].color & 0xFFFFFF);
+          jo["Color"]  = color;
+          jo["Slot"]   = bankTriggers[i].actions[a].slot;
+          jo["State"]  = bankTriggers[i].actions[a].state;
+          jo["Bank"]   = bankTriggers[i].actions[a].bank;
+        }
       }
     }
   }
@@ -629,9 +633,9 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
 
   // Get a reference to the root object
   JsonObject jro = jdoc.as<JsonObject>();
+  if (loadActions) incoming_actions_begin_update();
   if (loadActions && !append) {
-    incomingTriggerCount = 0;
-    memset(incomingTriggers, 0, sizeof(incomingTriggers));
+    incoming_actions_clear_all();
     incomingLegacyRulesDetected = false;
   }
   if (loadControls) {
@@ -857,8 +861,13 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
       if (jp.value().is<JsonArray>()) {
         JsonArray ja = jp.value();
         for (JsonObject triggerJson : ja) {
-          if (incomingTriggerCount >= INCOMING_TRIGGERS_MAX) break;
-          incomingTrigger *trigger = &incomingTriggers[incomingTriggerCount];
+          byte bank = constrain((int)(triggerJson["Bank"] | 0), 0, BANKS - 1);
+          byte triggerIndex = incomingTriggerCount[bank];
+          if (triggerIndex >= INCOMING_TRIGGERS_MAX) continue;
+          incomingTrigger *bankTriggers = incoming_actions_resize(bank, triggerIndex + 1);
+          if (bankTriggers == nullptr) break;
+          incomingTrigger *trigger = &bankTriggers[triggerIndex];
+          memset(trigger, 0, sizeof(incomingTrigger));
           trigger->triggerType = IncomingTriggerStringToEnum(triggerJson["TriggerType"] | "Control Change");
           trigger->channel     = constrain((int)(triggerJson["Channel"] | 17), 1, 17);
           trigger->number      = constrain((int)(triggerJson["Number"] | 0), 0, MIDI_RESOLUTION - 1);
@@ -892,8 +901,6 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
               trigger->actionCount++;
             }
           }
-
-          incomingTriggerCount++;
         }
       }
     }
@@ -962,6 +969,7 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
       }
     }
   }
+  if (loadActions) incoming_actions_end_update();
 }
 
 
@@ -1314,8 +1322,7 @@ void load_factory_default()
   for (byte s = 0; s < SLOTS; s++) {
     slotBorderColor[s] = 0xFFFFFF;
   }
-  incomingTriggerCount = 0;
-  memset(incomingTriggers, 0, sizeof(incomingTriggers));
+  incoming_actions_clear_all();
   incomingLegacyRulesDetected = false;
 
   byte c = 0;
@@ -1736,8 +1743,21 @@ void eeprom_update_profile(byte profile = currentProfile)
   preferences.putBytes("Interfaces",  &interfaces,  sizeof(interfaces));
   preferences.putBytes("Sequences",   &sequences,   sizeof(sequences));
   preferences.putBytes("SeqNames",    &sequenceNames, sizeof(sequenceNames));
-  preferences.putBytes("InTriggers",  &incomingTriggers, sizeof(incomingTriggers));
-  preferences.putUChar("InTrigCnt",   incomingTriggerCount);
+  preferences.remove("InTriggers");
+  preferences.remove("InTrigCnt");
+  for (byte b = 0; b < BANKS; b++) {
+    char triggerLabel[12];
+    char countLabel[12];
+    snprintf(triggerLabel, sizeof(triggerLabel), "InT%02d", b);
+    snprintf(countLabel, sizeof(countLabel), "InC%02d", b);
+    if (incomingTriggerCount[b] > 0 && incomingTriggers[b] != nullptr) {
+      preferences.putBytes(triggerLabel, incomingTriggers[b], sizeof(incomingTrigger) * incomingTriggerCount[b]);
+    }
+    else {
+      preferences.remove(triggerLabel);
+    }
+    preferences.putUChar(countLabel, incomingTriggerCount[b]);
+  }
   preferences.putUChar("Current Bank", currentBank);
   preferences.putUChar("Current MTC", currentMidiTimeCode);
 
@@ -1924,14 +1944,51 @@ void eeprom_read_profile(byte profile = currentProfile)
   int sequenceNameBytes = preferences.getBytes("SeqNames", &sequenceNames, sizeof(sequenceNames));
   if (sequenceNameBytes != sizeof(sequenceNames))
     DPRINT("Sequence names not found in profile, using defaults\n");
-  incomingTriggerCount = 0;
-  memset(incomingTriggers, 0, sizeof(incomingTriggers));
+  incoming_actions_begin_update();
+  incoming_actions_clear_all();
   incomingLegacyRulesDetected = false;
-  int incomingTriggerBytes = preferences.getBytes("InTriggers", &incomingTriggers, sizeof(incomingTriggers));
-  if (incomingTriggerBytes != sizeof(incomingTriggers))
+  bool incomingTriggersLoaded = false;
+  for (byte b = 0; b < BANKS; b++) {
+    char triggerLabel[12];
+    char countLabel[12];
+    snprintf(triggerLabel, sizeof(triggerLabel), "InT%02d", b);
+    snprintf(countLabel, sizeof(countLabel), "InC%02d", b);
+    byte count = constrain(preferences.getUChar(countLabel), 0, INCOMING_TRIGGERS_MAX);
+    if (count == 0) continue;
+
+    incomingTrigger *bankTriggers = incoming_actions_resize(b, count);
+    if (bankTriggers == nullptr) continue;
+
+    int incomingTriggerBytes = preferences.getBytes(triggerLabel, bankTriggers, sizeof(incomingTrigger) * count);
+    if (incomingTriggerBytes != (int)(sizeof(incomingTrigger) * count)) {
+      incoming_actions_clear(b);
+      DPRINT("Incoming triggers not found for bank %d in profile, using defaults\n", b);
+      continue;
+    }
+
+    incomingTriggersLoaded = true;
+  }
+
+  if (!incomingTriggersLoaded) {
+    byte count = constrain(preferences.getUChar("InTrigCnt"), 0, INCOMING_TRIGGERS_MAX);
+    if (count > 0) {
+      incomingTrigger *bankTriggers = incoming_actions_resize(0, INCOMING_TRIGGERS_MAX);
+      if (bankTriggers != nullptr) {
+        int incomingTriggerBytes = preferences.getBytes("InTriggers", bankTriggers, sizeof(incomingTrigger) * INCOMING_TRIGGERS_MAX);
+        if (incomingTriggerBytes == (int)(sizeof(incomingTrigger) * INCOMING_TRIGGERS_MAX)) {
+          incomingTriggerCount[0] = count;
+          incomingTriggersLoaded = true;
+          DPRINT("Migrated legacy incoming triggers to Global bank\n");
+        }
+        else {
+          incoming_actions_clear(0);
+        }
+      }
+    }
+  }
+  incoming_actions_end_update();
+  if (!incomingTriggersLoaded)
     DPRINT("Incoming triggers not found in profile, using defaults\n");
-  incomingTriggerCount = constrain(preferences.getUChar("InTrigCnt"), 0, INCOMING_TRIGGERS_MAX);
-  if (incomingTriggerBytes != sizeof(incomingTriggers)) incomingTriggerCount = 0;
   currentBank         = preferences.getUChar("Current Bank");
   currentMidiTimeCode = preferences.getUChar("Current MTC");
 

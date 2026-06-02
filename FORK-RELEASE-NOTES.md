@@ -12,6 +12,7 @@
 7. `6dcd6cf` (2026-04-23) - Update feature doc
 8. `TBD` - Pending local documentation/workflow updates
 9. `TBD` - HX Stomp looper bank config refresh
+10. `TBD` - Per-bank incoming MIDI actions
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -62,7 +63,18 @@
 - Removed provisional HX looper incoming trigger rules for now, so Bank 2 currently runs as a local-state looper layout without receive-side sync.
 - Compatibility note: `UNDO/REDO` remains effectively stateless in Pedalino, and the looper labels/slot states will not follow HX changes made from the HX itself or another controller until verified feedback mapping is added.
 
+### `TBD` - Per-bank incoming MIDI actions
+- Changed incoming MIDI trigger groups from one profile-wide ruleset to bank-scoped rules using `Global` bank `0` plus banks `1..20`.
+- Updated runtime dispatch so incoming MIDI evaluates `Global` rules first, then the current bank, and can continue into the newly selected bank when a global trigger performs `Set Bank`.
+- Added sparse per-bank incoming-trigger storage in RAM plus per-bank NVS persistence keys, while migrating older grouped `IncomingTriggers` entries without a trigger-level `Bank` into `Global`.
+- Updated `/incoming-actions` to select and edit one bank at a time and added a `Duplicate Bank To` dropdown that replaces the destination bank's incoming rules.
+- Hardened incoming trigger edits/config loads so MIDI dispatch skips while trigger storage is being resized or rewritten, without blocking profile load during boot.
+- Changed legacy NVS `InTriggers` migration to read into allocated trigger storage instead of a large boot-time stack buffer.
+- Bank reordering in `/actions` now carries each bank's incoming MIDI rules with the bank's actions and name.
+- Updated JSON/schema support so each `IncomingTriggers` entry persists its owning bank.
+- Compatibility note: legacy flat `IncomingActions` still requires manual recreation, but prior grouped `IncomingTriggers` configs now load into `Global` automatically when their trigger-level `Bank` field is missing; this migration was confirmed on the LilyGO T-Display S3 with existing stored rules.
+
 
 ## Validation
-- Latest verified build: `pio run -e lilygo-t-display-s3` (success).
-- HX looper bank update: config-only change; firmware build not re-run in this session.
+- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-02, merged `custom-open-source` with per-bank incoming MIDI actions).
+- Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.
