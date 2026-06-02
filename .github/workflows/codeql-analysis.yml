@@ -83,7 +83,7 @@ jobs:
 
     - name: Run local validation tests
       run: |
-        python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity scripts.test_web_config_contracts
+        python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts
 
     - name: Validate config surfaces
       run: |

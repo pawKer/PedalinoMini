@@ -14,9 +14,8 @@
 9. `TBD` - HX Stomp looper bank config refresh
 10. `TBD` - Per-bank incoming MIDI actions
 11. `TBD` - Config surface consistency checks
-12. `TBD` - Unofficial custom build identity
-13. `TBD` - Native unit test scaffold
-14. `TBD` - Expanded native and Web/config contract tests
+12. `TBD` - Native unit test scaffold
+13. `TBD` - Expanded native and Web/config contract tests
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -84,31 +83,24 @@
 - Compatibility note: no firmware behavior, config format, or web UI behavior changed.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
 
-### `TBD` - Unofficial custom build identity
-- Added README and installer disclaimers for `PedalinoMini 6 T-Display S3 Custom (Unofficial)` builds.
-- Updated generated and packaged ESP Web Tools manifest names to show the unofficial custom build label.
-- Added a local unit test that checks README, installer, manifest identity, and guards against changing runtime connectivity names.
-- Compatibility note: no firmware runtime behavior, hostname, BLE MIDI name, USB MIDI identity, or config format changed.
-- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
-
 ### `TBD` - Native unit test scaffold
 - Added a PlatformIO `native` environment backed by a project-local `native_host` board definition for host-side Unity tests.
 - Extracted dependency-free core helpers for `map2` and incoming MIDI trigger matching into `src/PedalinoCoreLogic.h`, and wired the existing firmware paths through those helpers.
 - Added native Unity coverage for `map2` endpoint/rounding/zero-width behavior and incoming MIDI trigger matching for CC/PC, Any/Exact values, Any channel, wrong channel/number, and unsupported message types.
 - Wired native unit tests into build and CodeQL CI, and added local validation plus native unit tests to the release workflow before firmware packaging.
 - Compatibility note: intended firmware behavior and config format are unchanged; this is a testability and CI-gating change.
-- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
 
 ### `TBD` - Expanded native and Web/config contract tests
 - Expanded host-side native Unity coverage for analog response mapping, display overlay label selection, slot-state tag decisions, incoming MIDI dispatch order and bank scope handling, RGB LED order swaps, chunked Web UI page trimming, and tap-tempo averaging/reset behavior.
 - Added Python contract coverage for `/incoming-actions` route/form fields, duplicate-bank action wiring, sequence-name UI/config contracts, legacy incoming-action import warnings, `SequenceNames` schema/runtime limits, and current plus legacy `IncomingTriggers` fixture support.
 - Wired the new Web/config contract tests into build, CodeQL, and release workflows alongside the existing local validation tests.
 - Compatibility note: intended firmware behavior and config format are unchanged; production paths now delegate more small decisions to dependency-free helpers so they can be regression-tested on the native host target.
-- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
 
 
 ## Validation
 - Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-02, expanded native and Web/config contract tests worktree).
 - Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (21 Unity tests passed, 2026-06-02).
-- Latest local Python validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity scripts.test_web_config_contracts` (18 tests passed, 2026-06-02).
+- Latest local Python validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (14 tests passed, 2026-06-02).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.

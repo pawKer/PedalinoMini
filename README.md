@@ -1,7 +1,3 @@
-# Unofficial Custom Build
-
-This repository publishes **PedalinoMini 6 T-Display S3 Custom (Unofficial)** builds for a PedalinoMini 6-style LilyGO T-Display S3 setup. These builds are a custom fork and are not official upstream PedalinoMini releases.
-
 [![](./images/PedalinoMini486.png)](https://github.com/alf45tar/PedalinoMini-6)
 
 # PedalinoMini™
