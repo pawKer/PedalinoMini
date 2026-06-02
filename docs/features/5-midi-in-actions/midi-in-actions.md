@@ -67,6 +67,9 @@ Locked behavior:
   - Per-bank trigger blobs `InT00` .. `InT20`
   - Per-bank trigger counts `InC00` .. `InC20`
   - Old `InTriggers` / `InTrigCnt` are read as a migration fallback into `Global`
+- Implementation note:
+  - Legacy NVS migration must not allocate the old full trigger array on the boot-time stack; read it into allocated trigger storage to avoid reboot loops on real hardware.
+  - Real-device check: existing grouped rules migrated into `Global` bank `0` on LilyGO T-Display S3.
 
 #### Test Plan
 1. Single trigger with multiple actions:

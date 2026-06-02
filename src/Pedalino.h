@@ -474,6 +474,8 @@ char      sequenceNames[SEQUENCES][MAXSEQUENCENAME+1];
 incomingTrigger *incomingTriggers[BANKS] = {nullptr};
 byte      incomingTriggerCount[BANKS] = {0};
 bool      incomingLegacyRulesDetected = false;
+volatile bool incomingActionsUpdating = false;
+volatile byte incomingActionsUpdateDepth = 0;
 byte      currentMIDIValue[BANKS][PEDALS][LADDER_STEPS];
 message   lastMIDIMessage[BANKS];
 CRGB      lastColor0;
@@ -662,6 +664,8 @@ extern AsyncEventSource events;
 
 void   controller_delete();
 void   delete_actions();
+void   incoming_actions_begin_update();
+void   incoming_actions_end_update();
 void   incoming_actions_clear(byte bank);
 void   incoming_actions_clear_all();
 incomingTrigger *incoming_actions_resize(byte bank, byte count);

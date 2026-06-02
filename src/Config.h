@@ -633,6 +633,7 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
 
   // Get a reference to the root object
   JsonObject jro = jdoc.as<JsonObject>();
+  if (loadActions) incoming_actions_begin_update();
   if (loadActions && !append) {
     incoming_actions_clear_all();
     incomingLegacyRulesDetected = false;
@@ -968,6 +969,7 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
       }
     }
   }
+  if (loadActions) incoming_actions_end_update();
 }
 
 
@@ -1942,6 +1944,7 @@ void eeprom_read_profile(byte profile = currentProfile)
   int sequenceNameBytes = preferences.getBytes("SeqNames", &sequenceNames, sizeof(sequenceNames));
   if (sequenceNameBytes != sizeof(sequenceNames))
     DPRINT("Sequence names not found in profile, using defaults\n");
+  incoming_actions_begin_update();
   incoming_actions_clear_all();
   incomingLegacyRulesDetected = false;
   bool incomingTriggersLoaded = false;
@@ -1967,19 +1970,23 @@ void eeprom_read_profile(byte profile = currentProfile)
   }
 
   if (!incomingTriggersLoaded) {
-    incomingTrigger legacyTriggers[INCOMING_TRIGGERS_MAX];
-    memset(legacyTriggers, 0, sizeof(legacyTriggers));
-    int incomingTriggerBytes = preferences.getBytes("InTriggers", &legacyTriggers, sizeof(legacyTriggers));
     byte count = constrain(preferences.getUChar("InTrigCnt"), 0, INCOMING_TRIGGERS_MAX);
-    if (incomingTriggerBytes == sizeof(legacyTriggers) && count > 0) {
-      incomingTrigger *bankTriggers = incoming_actions_resize(0, count);
+    if (count > 0) {
+      incomingTrigger *bankTriggers = incoming_actions_resize(0, INCOMING_TRIGGERS_MAX);
       if (bankTriggers != nullptr) {
-        memcpy(bankTriggers, legacyTriggers, sizeof(incomingTrigger) * count);
-        incomingTriggersLoaded = true;
-        DPRINT("Migrated legacy incoming triggers to Global bank\n");
+        int incomingTriggerBytes = preferences.getBytes("InTriggers", bankTriggers, sizeof(incomingTrigger) * INCOMING_TRIGGERS_MAX);
+        if (incomingTriggerBytes == (int)(sizeof(incomingTrigger) * INCOMING_TRIGGERS_MAX)) {
+          incomingTriggerCount[0] = count;
+          incomingTriggersLoaded = true;
+          DPRINT("Migrated legacy incoming triggers to Global bank\n");
+        }
+        else {
+          incoming_actions_clear(0);
+        }
       }
     }
   }
+  incoming_actions_end_update();
   if (!incomingTriggersLoaded)
     DPRINT("Incoming triggers not found in profile, using defaults\n");
   currentBank         = preferences.getUChar("Current Bank");

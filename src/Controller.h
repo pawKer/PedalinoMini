@@ -583,35 +583,57 @@ void switch_profile_or_bank(byte channel, byte number, byte value) {
   }
 }
 
+void incoming_actions_begin_update()
+{
+  if (incomingActionsUpdateDepth == 0) {
+    incomingActionsUpdating = true;
+  }
+  incomingActionsUpdateDepth++;
+}
+
+void incoming_actions_end_update()
+{
+  if (incomingActionsUpdateDepth > 0) incomingActionsUpdateDepth--;
+  if (incomingActionsUpdateDepth == 0) incomingActionsUpdating = false;
+}
+
 void incoming_actions_clear(byte bank)
 {
+  incoming_actions_begin_update();
   bank = constrain(bank, 0, BANKS - 1);
   if (incomingTriggers[bank] != nullptr) {
     free(incomingTriggers[bank]);
     incomingTriggers[bank] = nullptr;
   }
   incomingTriggerCount[bank] = 0;
+  incoming_actions_end_update();
 }
 
 void incoming_actions_clear_all()
 {
+  incoming_actions_begin_update();
   for (byte bank = 0; bank < BANKS; bank++) incoming_actions_clear(bank);
+  incoming_actions_end_update();
 }
 
 incomingTrigger *incoming_actions_resize(byte bank, byte count)
 {
+  incoming_actions_begin_update();
   bank = constrain(bank, 0, BANKS - 1);
   count = constrain(count, 0, INCOMING_TRIGGERS_MAX);
 
   byte oldCount = incomingTriggerCount[bank];
   if (count == 0) {
     incoming_actions_clear(bank);
+    incoming_actions_end_update();
     return nullptr;
   }
 
   incomingTrigger *resized = (incomingTrigger*)realloc(incomingTriggers[bank], sizeof(incomingTrigger) * count);
-  assert(resized != nullptr);
-  if (resized == nullptr) return nullptr;
+  if (resized == nullptr) {
+    incoming_actions_end_update();
+    return nullptr;
+  }
 
   if (count > oldCount) {
     memset(&resized[oldCount], 0, sizeof(incomingTrigger) * (count - oldCount));
@@ -619,26 +641,36 @@ incomingTrigger *incoming_actions_resize(byte bank, byte count)
 
   incomingTriggers[bank] = resized;
   incomingTriggerCount[bank] = count;
+  incoming_actions_end_update();
   return incomingTriggers[bank];
 }
 
 bool incoming_actions_copy(byte sourceBank, byte destinationBank)
 {
+  incoming_actions_begin_update();
   sourceBank = constrain(sourceBank, 0, BANKS - 1);
   destinationBank = constrain(destinationBank, 0, BANKS - 1);
 
-  if (sourceBank == destinationBank) return true;
+  if (sourceBank == destinationBank) {
+    incoming_actions_end_update();
+    return true;
+  }
 
   byte sourceCount = incomingTriggerCount[sourceBank];
   if (sourceCount == 0) {
     incoming_actions_clear(destinationBank);
+    incoming_actions_end_update();
     return true;
   }
 
   incomingTrigger *destination = incoming_actions_resize(destinationBank, sourceCount);
-  if (destination == nullptr) return false;
+  if (destination == nullptr) {
+    incoming_actions_end_update();
+    return false;
+  }
 
   memcpy(destination, incomingTriggers[sourceBank], sizeof(incomingTrigger) * sourceCount);
+  incoming_actions_end_update();
   return true;
 }
 
@@ -670,6 +702,7 @@ incomingTrigger *incoming_actions_at(byte bank, byte index)
 void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2)
 {
   if (midiType != midi::ControlChange && midiType != midi::ProgramChange) return;
+  if (incomingActionsUpdating) return;
 
   auto run_bank = [&](byte bank) {
     bank = constrain(bank, 0, BANKS - 1);

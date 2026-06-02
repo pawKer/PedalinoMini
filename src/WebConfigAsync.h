@@ -6115,6 +6115,8 @@ void http_handle_actions(AsyncWebServerRequest *request) {
   String list;
   action *a[BANKS];
   char    n[BANKS][MAXBANKNAME+1];
+  incomingTrigger *it[BANKS];
+  byte    itc[BANKS];
 
   if (!httpUsername.isEmpty() && !request->authenticate(httpUsername.c_str(), httpPassword.c_str())) return request->requestAuthentication();
   http_handle_globals(request);
@@ -6125,8 +6127,11 @@ void http_handle_actions(AsyncWebServerRequest *request) {
   for (byte b = 0; b < BANKS; b++) {
     a[b] = actions[b];
     strlcpy(n[b], banknames[b], MAXBANKNAME+1);
+    it[b] = incomingTriggers[b];
+    itc[b] = incomingTriggerCount[b];
   }
 
+  bool reorderBanks = !list.isEmpty();
   int  i1 = 0;
   int  i2 = list.indexOf(",");
   byte to = 0;
@@ -6134,15 +6139,23 @@ void http_handle_actions(AsyncWebServerRequest *request) {
     long from = constrain(list.substring(i1, i2).toInt(), 0, BANKS - 1);
     a[to] = actions[from];
     strlcpy(n[to], banknames[from], MAXBANKNAME+1);
+    it[to] = incomingTriggers[from];
+    itc[to] = incomingTriggerCount[from];
     to++;
     i1 = i2 + 1;
     i2 = (i2 == list.lastIndexOf(",")) ? list.length() : list.indexOf(",", i1);
   }
 
+  if (reorderBanks) incoming_actions_begin_update();
   for (byte b = 0; b < BANKS; b++) {
     actions[b] = a[b];
     strlcpy(banknames[b], n[b], MAXBANKNAME+1);
+    if (reorderBanks) {
+      incomingTriggers[b] = it[b];
+      incomingTriggerCount[b] = itc[b];
+    }
   }
+  if (reorderBanks) incoming_actions_end_update();
 
   create_banks();
 
@@ -6640,6 +6653,7 @@ void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
     set_default_target(&trigger->actions[0]);
   };
 
+  incoming_actions_begin_update();
   if (command.equals("new-trigger")) {
     byte triggerCount = incomingTriggerCount[b];
     if (triggerCount < INCOMING_TRIGGERS_MAX) {
@@ -6782,6 +6796,7 @@ void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
       alert = "Changes saved.";
     }
   }
+  incoming_actions_end_update();
 
   AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_incoming_actions_page_chunked);
   response->addHeader("Connection", "close");
