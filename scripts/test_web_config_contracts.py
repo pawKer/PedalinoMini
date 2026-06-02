@@ -136,6 +136,19 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertIn("IncomingActions", self.web_config)
         self.assertIn("grouped triggers", self.web_config)
 
+    def test_hardware_route_and_live_transport_are_registered(self) -> None:
+        self.assertIn('httpServer.on("/hardware",', self.web_config)
+        self.assertIn("http_handle_hardware", self.web_config)
+        self.assertIn("get_hardware_page_chunked", self.web_config)
+        self.assertIn("hardware_send_state", self.web_config)
+
+    def test_hardware_page_contains_virtual_button_contract(self) -> None:
+        self.assertIn("control-press:", self.web_config)
+        self.assertIn("control-release:", self.web_config)
+        self.assertIn("addEventListener('hardware'", self.web_config)
+        self.assertIn("hardwareButton", self.web_config)
+        self.assertIn("hardwareSlot", self.web_config)
+
 
 class ConfigFixtureContractTest(unittest.TestCase):
     def setUp(self) -> None:

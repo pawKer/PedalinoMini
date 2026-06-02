@@ -109,6 +109,182 @@ String sequence_label(unsigned int sequence) {
   return label;
 }
 
+#ifdef WEBSOCKET
+String hardwareLastStateJson = "";
+
+String hardware_json_escape(const String& value)
+{
+  String escaped = value;
+  escaped.replace("\\", "\\\\");
+  escaped.replace("\"", "\\\"");
+  escaped.replace("\n", " ");
+  escaped.replace("\r", " ");
+  escaped.replace("\t", " ");
+  return escaped;
+}
+
+void hardware_append_json_string(String& json, const String& value)
+{
+  json += "\"";
+  json += hardware_json_escape(value);
+  json += "\"";
+}
+
+String hardware_bank_label()
+{
+  String label = banknames[currentBank][0] == 0
+               ? String("Bank ") + (currentBank > 9 ? "" : "0") + String(currentBank)
+               : String(banknames[currentBank]);
+  label.replace(String("##"), String(currentBank));
+  return label;
+}
+
+byte hardware_action_label_score(action* act)
+{
+  if (act == nullptr) return 0;
+  if (act->tag0[0] != 0 && act->tag1[0] != 0) return 4;
+  if (act->tag0[0] != 0 || act->tag1[0] != 0) return 3;
+  if (act->name[0] != 0) return 2;
+  return 1;
+}
+
+action* hardware_best_action_for_control(byte controlIndex)
+{
+  action* best = nullptr;
+  byte bestScore = 0;
+
+  for (byte pass = 0; pass < 2; pass++) {
+    if (pass == 1 && currentBank == 0) break;
+    action* act = actions[pass == 0 ? currentBank : 0];
+    while (act != nullptr) {
+      if (act->control == controlIndex) {
+        const byte score = hardware_action_label_score(act);
+        if (best == nullptr || score > bestScore) {
+          best = act;
+          bestScore = score;
+        }
+      }
+      act = act->next;
+    }
+  }
+
+  return best;
+}
+
+action* hardware_best_action_for_slot(byte slot)
+{
+  action* best = nullptr;
+  byte bestScore = 0;
+  action* act = actions[currentBank];
+
+  while (act != nullptr) {
+    if (act->midiMessage != PED_ACTION_SET_SLOT_STATE && act->slot == slot) {
+      const byte score = hardware_action_label_score(act);
+      if (best == nullptr || score > bestScore) {
+        best = act;
+        bestScore = score;
+      }
+    }
+    act = act->next;
+  }
+
+  return best;
+}
+
+bool hardware_action_value(action* act, int& value)
+{
+  if (act == nullptr || act->control >= CONTROLS) return false;
+
+  const byte pedal = controls[act->control].pedal1;
+  const byte button = controls[act->control].button1;
+  if (pedal >= PEDALS || button >= LADDER_STEPS) return false;
+
+  value = currentMIDIValue[currentBank][pedal][button];
+  return true;
+}
+
+String hardware_action_label(action* act, bool active, const String& fallback)
+{
+  if (act == nullptr) return fallback;
+
+  String label = "";
+  if (act->tag0[0] != 0 && act->tag1[0] != 0) {
+    label = pedalino::hardware_display_label(act->tag0, act->tag1, active, fallback.c_str());
+  }
+  else if (act->tag0[0] != 0) {
+    label = act->tag0;
+  }
+  else if (act->tag1[0] != 0) {
+    label = act->tag1;
+  }
+  else if (act->name[0] != 0) {
+    label = act->name;
+  }
+  else {
+    label = fallback;
+  }
+
+  int value = 0;
+  if (hardware_action_value(act, value)) label.replace(String("###"), String(value));
+  label.replace(String("\n"), String(" "));
+  label.trim();
+  return label.length() == 0 ? fallback : label;
+}
+
+String hardware_state_json()
+{
+  String json = F("{\"bank\":");
+  json += currentBank;
+  json += F(",\"bankName\":");
+  hardware_append_json_string(json, hardware_bank_label());
+
+  json += F(",\"buttons\":[");
+  for (byte i = 0; i < 6; i++) {
+    if (i > 0) json += ",";
+    const pedalino::HardwareControlMapping mapping = controller_virtual_control_mapping(i);
+    const bool active = mapping.supported && currentMIDIValue[currentBank][mapping.pedal][mapping.button] > 0;
+    const String fallback = String("Control ") + String(i + 1);
+    json += F("{\"id\":");
+    json += (i + 1);
+    json += F(",\"label\":");
+    hardware_append_json_string(json, hardware_action_label(hardware_best_action_for_control(i), active, fallback));
+    json += F(",\"enabled\":");
+    json += mapping.supported ? F("true") : F("false");
+    json += F(",\"reason\":");
+    hardware_append_json_string(json, mapping.supported ? String("") : String(mapping.reason));
+    json += "}";
+  }
+
+  json += F("],\"slots\":[");
+  for (byte s = 0; s < SLOTS && s < 6; s++) {
+    if (s > 0) json += ",";
+    const bool active = slotDisplayInitialized[currentBank][s] ? slotDisplayState[currentBank][s] : false;
+    const String fallback = String("S") + String(s + 1);
+    json += F("{\"id\":");
+    json += (s + 1);
+    json += F(",\"label\":");
+    hardware_append_json_string(json, hardware_action_label(hardware_best_action_for_slot(s), active, fallback));
+    json += F(",\"active\":");
+    json += active ? F("true") : F("false");
+    json += "}";
+  }
+  json += F("]}");
+
+  return json;
+}
+
+void hardware_send_state(bool force = false)
+{
+  if (wsClient == nullptr && !force) return;
+
+  String json = hardware_state_json();
+  if (force || json != hardwareLastStateJson) {
+    hardwareLastStateJson = json;
+    events.send(json.c_str(), "hardware");
+  }
+}
+#endif
+
 
 bool get_top_page(int p, unsigned int start, unsigned int len) {
 
@@ -202,6 +378,17 @@ bool get_top_page(int p, unsigned int start, unsigned int len) {
   page += F("<path d='M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9.414l1 1H12a.5.5 0 0 1 0 1H4a.5.5 0 0 1 0-1h1.586l1-1H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z'/>");
   page += F("</svg>");
   page += F(" Display</a>");
+  page += F("</li>");
+
+  if (trim_page(start, len)) return true;
+
+  page += F("<li class='nav-item");
+  page += (p == 11 ? F(" active'>") : F("'>"));
+  page += F("<a class='nav-link' href='/hardware'>");
+  page += F("<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-grid-3x2-gap' viewBox='0 0 16 16'>");
+  page += F("<path d='M4 4v2H2V4h2zm1-1H1v4h4V3zm4 1v2H7V4h2zm1-1H6v4h4V3zm4 1v2h-2V4h2zm1-1h-4v4h4V3zM4 10v2H2v-2h2zm1-1H1v4h4V9zm4 1v2H7v-2h2zm1-1H6v4h4V9zm4 1v2h-2v-2h2zm1-1h-4v4h4V9z'/>");
+  page += F("</svg>");
+  page += F(" Hardware</a>");
   page += F("</li>");
 
   if (trim_page(start, len)) return true;
@@ -3344,6 +3531,96 @@ void get_display_page(unsigned int start, unsigned int len) {
   if (trim_page(start, len, true)) return;
 }
 
+void get_hardware_page(unsigned int start, unsigned int len) {
+
+  if (get_top_page(11, start, len)) return;
+
+  page += F("<div class='card mb-3'>");
+  page += F("<div class='card-header'>");
+  page += F("<div class='row align-items-center'>");
+  page += F("<div class='col-auto me-auto'>");
+  page += F("<h5 class='mb-0'>");
+  page += F("<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' fill='currentColor' class='bi bi-grid-3x2-gap' viewBox='0 0 16 16'>");
+  page += F("<path d='M4 4v2H2V4h2zm1-1H1v4h4V3zm4 1v2H7V4h2zm1-1H6v4h4V3zm4 1v2h-2V4h2zm1-1h-4v4h4V3zM4 10v2H2v-2h2zm1-1H1v4h4V9zm4 1v2H7v-2h2zm1-1H6v4h4V9zm4 1v2h-2v-2h2zm1-1h-4v4h4V9z'/>");
+  page += F("</svg>");
+  page += F(" Hardware Test");
+  page += F("</h5>");
+  page += F("</div>");
+  page += F("<div class='col-auto'><span id='hardwareStatus' class='badge bg-secondary'>Disconnected</span></div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("<div class='card-body'>");
+  page += F("<div class='row g-3'>");
+  page += F("<div class='col-12 col-lg-7'>");
+  page += F("<div class='row g-2'>");
+
+  if (trim_page(start, len)) return;
+
+  for (byte i = 1; i <= 6; i++) {
+    page += F("<div class='col-6 col-md-4'>");
+    page += F("<button type='button' class='btn btn-outline-primary w-100 hardwareButton' data-control='");
+    page += i;
+    page += F("' style='min-height:96px;font-weight:700;white-space:normal;' disabled>");
+    page += F("<span>Control ");
+    page += i;
+    page += F("</span>");
+    page += F("</button>");
+    page += F("</div>");
+    if (trim_page(start, len)) return;
+  }
+
+  page += F("</div>");
+  page += F("</div>");
+  page += F("<div class='col-12 col-lg-5'>");
+  page += F("<div class='border rounded p-3 bg-dark text-light'>");
+  page += F("<div class='d-flex justify-content-between align-items-center mb-2'>");
+  page += F("<span id='hardwareBank' class='fw-bold'>Bank</span>");
+  page += F("<span class='small text-secondary'>Display</span>");
+  page += F("</div>");
+  page += F("<div style='display:grid;grid-template-columns:repeat(3,minmax(64px,1fr));gap:8px;'>");
+  for (byte s = 1; s <= 6; s++) {
+    page += F("<div id='hardwareSlot");
+    page += s;
+    page += F("' class='hardwareSlot' style='min-height:72px;border:3px solid #666;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;padding:6px;'>S");
+    page += s;
+    page += F("</div>");
+  }
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+  page += F("</div>");
+
+  if (trim_page(start, len)) return;
+
+  page += F("<script>");
+  page += F("let hardwareSocket=null;const hardwareActive={};");
+  page += F("function hardwareSetStatus(t,c){const s=document.getElementById('hardwareStatus');if(!s)return;s.textContent=t;s.className='badge '+c;}");
+  page += F("function hardwareSend(command){if(hardwareSocket&&hardwareSocket.readyState===WebSocket.OPEN){hardwareSocket.send(command);}}");
+  page += F("function hardwarePress(id){if(hardwareActive[id])return;hardwareActive[id]=true;hardwareSend('control-press:'+id);}");
+  page += F("function hardwareRelease(id){if(!hardwareActive[id])return;hardwareActive[id]=false;hardwareSend('control-release:'+id);}");
+  page += F("function hardwareApplyState(state){");
+  page += F("const bank=document.getElementById('hardwareBank');if(bank)bank.textContent=state.bankName||('Bank '+state.bank);");
+  page += F("(state.buttons||[]).forEach(function(b){const btn=document.querySelector('.hardwareButton[data-control=\"'+b.id+'\"]');if(!btn)return;btn.disabled=!b.enabled;btn.title=b.reason||'';const span=btn.querySelector('span');if(span)span.textContent=b.label||('Control '+b.id);});");
+  page += F("(state.slots||[]).forEach(function(s){const slot=document.getElementById('hardwareSlot'+s.id);if(!slot)return;slot.textContent=s.label||('S'+s.id);slot.style.borderColor=s.active?'#0d6efd':'#666';slot.style.background=s.active?'#0d6efd':'#111';});");
+  page += F("}");
+  page += F("function hardwareConnect(){const protocol=location.protocol==='https:'?'wss://':'ws://';hardwareSocket=new WebSocket(protocol+location.host+'/ws');");
+  page += F("hardwareSocket.onopen=function(){hardwareSetStatus('Connected','bg-success');hardwareSend('hardware-state');};");
+  page += F("hardwareSocket.onerror=function(){hardwareSetStatus('Error','bg-danger');};");
+  page += F("hardwareSocket.onclose=function(){hardwareSetStatus('Disconnected','bg-secondary');setTimeout(hardwareConnect,1500);};");
+  page += F("}");
+  page += F("document.addEventListener('DOMContentLoaded',function(){");
+  page += F("document.querySelectorAll('.hardwareButton').forEach(function(btn){const id=btn.dataset.control;btn.addEventListener('pointerdown',function(e){e.preventDefault();hardwarePress(id);});btn.addEventListener('pointerup',function(e){e.preventDefault();hardwareRelease(id);});btn.addEventListener('pointercancel',function(){hardwareRelease(id);});btn.addEventListener('pointerleave',function(){hardwareRelease(id);});});");
+  page += F("hardwareConnect();if(!!window.EventSource){const source=new EventSource('/events');source.addEventListener('hardware',function(event){hardwareApplyState(JSON.parse(event.data));},false);}");
+  page += F("});");
+  page += F("</script>");
+
+  get_footer_page();
+
+  if (trim_page(start, len, true)) return;
+}
+
 void get_incoming_actions_page(unsigned int start, unsigned int len) {
   const byte b = constrain(uibank.toInt(), 0, BANKS - 1);
   incomingTrigger *bankTriggers = incomingTriggers[b];
@@ -5956,6 +6233,22 @@ size_t get_display_page_chunked(uint8_t *buffer, size_t maxLen, size_t index) {
   return byteWritten;
 }
 
+size_t get_hardware_page_chunked(uint8_t *buffer, size_t maxLen, size_t index) {
+
+  page = "";
+  get_hardware_page(index, maxLen - 1);
+  page.getBytes(buffer, maxLen, 0);
+  buffer[maxLen-1] = 0; // CWE-126
+  size_t byteWritten = strlen((const char *)buffer);
+  if (byteWritten == 0) {
+    page = "";
+    alert = "";
+    alertError = "";
+    fullPageCompleted = true;
+  }
+  return byteWritten;
+}
+
 size_t get_incoming_actions_page_chunked(uint8_t *buffer, size_t maxLen, size_t index) {
 
   page = "";
@@ -6183,6 +6476,14 @@ void http_handle_display(AsyncWebServerRequest *request) {
   if (!httpUsername.isEmpty() && !request->authenticate(httpUsername.c_str(), httpPassword.c_str())) return request->requestAuthentication();
   http_handle_globals(request);
   AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_display_page_chunked);
+  response->addHeader("Connection", "close");
+  request->send(response);
+}
+
+void http_handle_hardware(AsyncWebServerRequest *request) {
+  if (!httpUsername.isEmpty() && !request->authenticate(httpUsername.c_str(), httpPassword.c_str())) return request->requestAuthentication();
+  http_handle_globals(request);
+  AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_hardware_page_chunked);
   response->addHeader("Connection", "close");
   request->send(response);
 }
@@ -7395,6 +7696,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
     //client->keepAlivePeriod(1);
     //connected = true;
     wsClient = client;
+    hardware_send_state(true);
   } else if(type == WS_EVT_DISCONNECT){
     //client disconnected
     DPRINT("ws[%s][%u] disconnect\n", server->url(), client->id());
@@ -7415,6 +7717,25 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
       if(info->opcode == WS_TEXT){
         data[len] = 0;
         DPRINT("%s\n", (char*)data);
+        int controlNumber = 0;
+        String reason;
+        if (sscanf((const char *)data, "control-press:%d", &controlNumber) == 1) {
+          if (controlNumber >= 1 && controlNumber <= 6) {
+            controller_virtual_control_event(controlNumber - 1, AceButton::kEventPressed, &reason);
+            if (!reason.isEmpty()) DPRINT("Virtual control press skipped: %s\n", reason.c_str());
+          }
+          hardware_send_state(true);
+        }
+        else if (sscanf((const char *)data, "control-release:%d", &controlNumber) == 1) {
+          if (controlNumber >= 1 && controlNumber <= 6) {
+            controller_virtual_control_event(controlNumber - 1, AceButton::kEventReleased, &reason);
+            if (!reason.isEmpty()) DPRINT("Virtual control release skipped: %s\n", reason.c_str());
+          }
+          hardware_send_state(true);
+        }
+        else if (strcmp((const char *)data, "hardware-state") == 0) {
+          hardware_send_state(true);
+        }
       } else {
         for (size_t i = 0; i < info->len; i++) {
           DPRINT("%02x ", data[i]);
@@ -7491,6 +7812,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
             reset_slot_display_state(currentBank);
             update_current_step();
             leds_refresh();
+            hardware_send_state(true);
           }
         }
       }
@@ -7576,6 +7898,9 @@ void http_setup() {
   httpServer.on("/virtualpedals",   HTTP_POST,  http_handle_post_controls);
   httpServer.on("/display",         HTTP_GET,   http_handle_display);
   httpServer.on("/display",         HTTP_POST,  http_handle_post_display);
+#ifdef WEBSOCKET
+  httpServer.on("/hardware",        HTTP_GET,   http_handle_hardware);
+#endif
   httpServer.on("/incoming-actions", HTTP_GET,  http_handle_incoming_actions);
   httpServer.on("/incoming-actions", HTTP_POST, http_handle_post_incoming_actions);
   httpServer.on("/sequences",       HTTP_GET,   http_handle_sequences);
@@ -7629,6 +7954,7 @@ inline void http_run() {
      // Limits the number of clients by closing the oldest client
      // when the maximum number of clients has been exceeded
     webSocket.cleanupClients();
+    hardware_send_state();
 #endif
 
 /*

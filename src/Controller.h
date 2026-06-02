@@ -1877,6 +1877,48 @@ void controller_event_handler_button(AceButton* button, uint8_t eventType, uint8
   process_backlog();
 }
 
+inline pedalino::HardwareControlMapping controller_virtual_control_mapping(byte controlIndex)
+{
+  if (controlIndex >= CONTROLS) return {false, 0, 0, "Invalid control"};
+
+  const byte pedal = controls[controlIndex].pedal1;
+  const int pedalMode = pedal < PEDALS ? pedals[pedal].mode : PED_NONE;
+
+  return pedalino::hardware_control_mapping_for(controls[controlIndex].pedal1,
+                                                controls[controlIndex].button1,
+                                                controls[controlIndex].pedal2,
+                                                controls[controlIndex].button2,
+                                                pedalMode,
+                                                PEDALS,
+                                                LADDER_STEPS,
+                                                PEDALS,
+                                                LADDER_STEPS,
+                                                PED_MOMENTARY1,
+                                                PED_MOMENTARY2,
+                                                PED_MOMENTARY3,
+                                                PED_LADDER,
+                                                PED_ANALOG_MOMENTARY);
+}
+
+inline bool controller_virtual_control_event(byte controlIndex, uint8_t eventType, String* reason = nullptr)
+{
+  const pedalino::HardwareControlMapping mapping = controller_virtual_control_mapping(controlIndex);
+  if (!mapping.supported) {
+    if (reason != nullptr) *reason = mapping.reason;
+    return false;
+  }
+
+  AceButton* button = pedals[mapping.pedal].button[mapping.button];
+  if (button == nullptr) {
+    if (reason != nullptr) *reason = "Pedal button unavailable";
+    return false;
+  }
+
+  controller_event_handler_button(button, eventType, eventType == AceButton::kEventPressed ? HIGH : LOW);
+  if (reason != nullptr) *reason = "";
+  return true;
+}
+
 //
 // Trigger Actions on Analog Events
 //
