@@ -16,6 +16,7 @@
 11. `TBD` - Config surface consistency checks
 12. `TBD` - Native unit test scaffold
 13. `TBD` - Expanded native and Web/config contract tests
+14. `TBD` - Web hardware test page
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -98,9 +99,20 @@
 - Compatibility note: intended firmware behavior and config format are unchanged; production paths now delegate more small decisions to dependency-free helpers so they can be regression-tested on the native host target.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
 
+### `TBD` - Web hardware test page
+- Added a WebSocket-first `/hardware` page for LilyGO T-Display S3 builds with six virtual controls mapped to fixed Controls `1..6` and a read-only 2x3 display-state preview.
+- Enabled `WEBSOCKET` only for the `lilygo-t-display-s3` PlatformIO environment, leaving other board build flags unchanged.
+- Added runtime helpers that resolve a virtual control to its primary single momentary-style pedal/button mapping and inject `Pressed` / `Released` events through the existing controller event handler.
+- Added compact `hardware` EventSource updates for current bank label, virtual button labels/enabled state, and visible slot labels/state; state is sent when the snapshot changes while a hardware page WebSocket client is connected.
+- Added host-side coverage for virtual-control mapping and display-label fallback helpers, plus Web/config contract coverage for `/hardware` route and browser command/event wiring.
+- Compatibility note: saved configuration format is unchanged. Unsupported virtual controls, including unmapped controls, simultaneous controls, and non-momentary pedal modes, are surfaced as disabled browser buttons instead of adding a separate action path.
+- Size note for `lilygo-t-display-s3`: baseline firmware was `2,408,105` bytes flash / `107,176` bytes RAM; final branch build is `2,435,293` bytes flash / `107,472` bytes RAM, leaving `1,103,651` bytes free in the `3,538,944` byte OTA app slot.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3 -t buildfs`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
+
 
 ## Validation
-- Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-02, expanded native and Web/config contract tests worktree).
-- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (21 Unity tests passed, 2026-06-02).
-- Latest local Python validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (14 tests passed, 2026-06-02).
+- Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-02, Web hardware test page worktree; RAM `107,472` bytes, flash `2,435,293` bytes).
+- Latest filesystem build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3 -t buildfs` (success, 2026-06-02, Web hardware test page worktree).
+- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (27 Unity tests passed, 2026-06-02).
+- Latest local Python validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (16 tests passed, 2026-06-02).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.
