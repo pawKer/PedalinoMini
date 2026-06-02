@@ -279,8 +279,8 @@ void hardware_send_state(bool force = false)
 
   String json = hardware_state_json();
   if (force || json != hardwareLastStateJson) {
-    hardwareLastStateJson = json;
     events.send(json.c_str(), "hardware");
+    if (!force) hardwareLastStateJson = json;
   }
 }
 #endif
@@ -3612,7 +3612,7 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("}");
   page += F("document.addEventListener('DOMContentLoaded',function(){");
   page += F("document.querySelectorAll('.hardwareButton').forEach(function(btn){const id=btn.dataset.control;btn.addEventListener('pointerdown',function(e){e.preventDefault();hardwarePress(id);});btn.addEventListener('pointerup',function(e){e.preventDefault();hardwareRelease(id);});btn.addEventListener('pointercancel',function(){hardwareRelease(id);});btn.addEventListener('pointerleave',function(){hardwareRelease(id);});});");
-  page += F("hardwareConnect();if(!!window.EventSource){const source=new EventSource('/events');source.addEventListener('hardware',function(event){hardwareApplyState(JSON.parse(event.data));},false);}");
+  page += F("if(!!window.EventSource){const source=new EventSource('/events');source.addEventListener('open',function(){hardwareSend('hardware-state');},false);source.addEventListener('hardware',function(event){hardwareApplyState(JSON.parse(event.data));},false);}hardwareConnect();");
   page += F("});");
   page += F("</script>");
 
