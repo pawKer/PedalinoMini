@@ -14,6 +14,7 @@
 9. `TBD` - HX Stomp looper bank config refresh
 10. `TBD` - Per-bank incoming MIDI actions
 11. `TBD` - Config surface consistency checks
+12. `TBD` - Unofficial custom build identity
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -81,7 +82,14 @@
 - Compatibility note: no firmware behavior, config format, or web UI behavior changed.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
 
+### `TBD` - Unofficial custom build identity
+- Added README and installer disclaimers for `PedalinoMini 6 T-Display S3 Custom (Unofficial)` builds.
+- Updated generated and packaged ESP Web Tools manifest names to show the unofficial custom build label.
+- Added a local unit test that checks README, installer, manifest identity, and guards against changing runtime connectivity names.
+- Compatibility note: no firmware runtime behavior, hostname, BLE MIDI name, USB MIDI identity, or config format changed.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
+
 
 ## Validation
-- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-02, config surface consistency checks worktree).
+- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-02, unofficial custom build identity worktree).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.

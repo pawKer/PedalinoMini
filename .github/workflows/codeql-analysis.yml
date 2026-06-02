@@ -81,6 +81,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install platformio
 
+    - name: Run local validation tests
+      run: |
+        python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity
+
     - name: Validate config surfaces
       run: |
         python scripts/validate_config_surfaces.py

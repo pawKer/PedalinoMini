@@ -3,7 +3,7 @@
   <head>
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
-    <title>Install PedalinoMini™</title>
+    <title>Install PedalinoMini 6 T-Display S3 Custom (Unofficial)</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <style>
       div, fieldset, input, select { padding: 5px; font-size: 1em; }
@@ -25,6 +25,7 @@
       label { display: block; margin-top: 10px; color: #eaeaea; }
       select { width: 80%; background: #dddddd; color: #000000; margin: 0 auto; text-align: center; }
       .pick-variant { margin-bottom: 16px; text-align: center; }
+      .build-notice { margin: 0 auto 16px; max-width: 680px; color: #f5d36b; line-height: 1.45; }
       .dropdown-container { margin: 0 auto; display: inline-block; text-align: left; width: 70%; }
       #board-select, #version-select { width: 90%; }
 
@@ -51,9 +52,10 @@
   <body>
     <div style='display:inline-block;color:#eaeaea;min-width:340px;'>
 
-    <h1>PedalinoMini™ Installer</h1>
+    <h1>PedalinoMini 6 T-Display S3 Custom (Unofficial) Installer</h1>
 
     <div class="pick-variant">
+      <p class="build-notice"><strong>This installer flashes unofficial custom fork builds.</strong><br>These builds target a PedalinoMini 6-style LilyGO T-Display S3 setup and are not official upstream PedalinoMini releases.</p>
       <div>
         <ol style="text-align:left">
           <li>Select the appropriate board and firmware version</li>
@@ -127,9 +129,10 @@
     </div>
     <div style='text-align:right;font-size:11px;'>
       <hr/>
-      <a href="https://esphome.github.io/esp-web-tools/" target='_blank' style='color:#aaa;'>PedalinoMini™ Installer powered by ESP Web Tools</a>
+      <a href="https://esphome.github.io/esp-web-tools/" target='_blank' style='color:#aaa;'>PedalinoMini 6 T-Display S3 Custom (Unofficial) Installer powered by ESP Web Tools</a>
     </div>
     <script>
+    const CUSTOM_BUILD_NAME = "PedalinoMini 6 T-Display S3 Custom (Unofficial)";
 
     // Mapping of board keys to their display names
     const boards = {
@@ -260,7 +263,7 @@
         const chipFamily = boards[boardKey]?.chipFamily || "ESP32";
 
         const manifest = {
-            name: `PedalinoMini™`,
+            name: CUSTOM_BUILD_NAME,
             version: version,
             funding_url: "https://github.com/sponsors/alf45tar",
             new_install_prompt_erase: true,
