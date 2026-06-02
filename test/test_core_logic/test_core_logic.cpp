@@ -35,6 +35,17 @@ const int kGrb = 2;
 const int kGbr = 3;
 const int kBrg = 4;
 const int kBgr = 5;
+const int kPedals = 6;
+const int kButtons = 6;
+const int kUnusedPedal = 6;
+const int kUnusedButton = 6;
+const int kPedNone = 1;
+const int kPedMomentary1 = 2;
+const int kPedMomentary2 = 6;
+const int kPedMomentary3 = 7;
+const int kPedLadder = 9;
+const int kPedAnalog = 10;
+const int kPedAnalogMomentary = 11;
 
 struct TestAction {
   int targetAction;
@@ -378,6 +389,89 @@ void test_tap_tempo_tracker_averages_after_third_tap_and_resets_on_timeout()
   TEST_ASSERT_EQUAL_INT(1, readingPos);
 }
 
+pedalino::HardwareControlMapping hardware_mapping_for_test(int pedal1,
+                                                           int button1,
+                                                           int pedal2,
+                                                           int button2,
+                                                           int pedalMode)
+{
+  return pedalino::hardware_control_mapping_for(pedal1,
+                                                button1,
+                                                pedal2,
+                                                button2,
+                                                pedalMode,
+                                                kPedals,
+                                                kButtons,
+                                                kUnusedPedal,
+                                                kUnusedButton,
+                                                kPedMomentary1,
+                                                kPedMomentary2,
+                                                kPedMomentary3,
+                                                kPedLadder,
+                                                kPedAnalogMomentary);
+}
+
+void test_hardware_control_mapping_accepts_single_momentary_primary_mapping()
+{
+  const pedalino::HardwareControlMapping mapping = hardware_mapping_for_test(0, 0, kUnusedPedal, kUnusedButton, kPedMomentary1);
+
+  TEST_ASSERT_TRUE(mapping.supported);
+  TEST_ASSERT_EQUAL_INT(0, mapping.pedal);
+  TEST_ASSERT_EQUAL_INT(0, mapping.button);
+  TEST_ASSERT_EQUAL_STRING("", mapping.reason);
+}
+
+void test_hardware_control_mapping_accepts_ladder_and_analog_momentary_modes()
+{
+  pedalino::HardwareControlMapping mapping = hardware_mapping_for_test(2, 3, kUnusedPedal, kUnusedButton, kPedLadder);
+  TEST_ASSERT_TRUE(mapping.supported);
+  TEST_ASSERT_EQUAL_INT(2, mapping.pedal);
+  TEST_ASSERT_EQUAL_INT(3, mapping.button);
+
+  mapping = hardware_mapping_for_test(4, 0, kUnusedPedal, kUnusedButton, kPedAnalogMomentary);
+  TEST_ASSERT_TRUE(mapping.supported);
+  TEST_ASSERT_EQUAL_INT(4, mapping.pedal);
+  TEST_ASSERT_EQUAL_INT(0, mapping.button);
+}
+
+void test_hardware_control_mapping_rejects_unmapped_or_out_of_range_control()
+{
+  pedalino::HardwareControlMapping mapping = hardware_mapping_for_test(kUnusedPedal, kUnusedButton, kUnusedPedal, kUnusedButton, kPedMomentary1);
+  TEST_ASSERT_FALSE(mapping.supported);
+  TEST_ASSERT_EQUAL_STRING("Unmapped control", mapping.reason);
+
+  mapping = hardware_mapping_for_test(0, kButtons, kUnusedPedal, kUnusedButton, kPedMomentary1);
+  TEST_ASSERT_FALSE(mapping.supported);
+  TEST_ASSERT_EQUAL_STRING("Unmapped control", mapping.reason);
+}
+
+void test_hardware_control_mapping_rejects_simultaneous_control()
+{
+  const pedalino::HardwareControlMapping mapping = hardware_mapping_for_test(0, 0, 1, 0, kPedMomentary1);
+
+  TEST_ASSERT_FALSE(mapping.supported);
+  TEST_ASSERT_EQUAL_STRING("Simultaneous control", mapping.reason);
+}
+
+void test_hardware_control_mapping_rejects_non_momentary_mode()
+{
+  pedalino::HardwareControlMapping mapping = hardware_mapping_for_test(0, 0, kUnusedPedal, kUnusedButton, kPedAnalog);
+  TEST_ASSERT_FALSE(mapping.supported);
+  TEST_ASSERT_EQUAL_STRING("Unsupported pedal mode", mapping.reason);
+
+  mapping = hardware_mapping_for_test(0, 0, kUnusedPedal, kUnusedButton, kPedNone);
+  TEST_ASSERT_FALSE(mapping.supported);
+  TEST_ASSERT_EQUAL_STRING("Unsupported pedal mode", mapping.reason);
+}
+
+void test_hardware_display_label_prefers_active_tag_then_fallback()
+{
+  TEST_ASSERT_EQUAL_STRING("PLAY", pedalino::hardware_display_label("STOP", "PLAY", true, "Control 1"));
+  TEST_ASSERT_EQUAL_STRING("STOP", pedalino::hardware_display_label("STOP", "PLAY", false, "Control 1"));
+  TEST_ASSERT_EQUAL_STRING("Control 1", pedalino::hardware_display_label("", "", false, "Control 1"));
+  TEST_ASSERT_EQUAL_STRING("Control 1", pedalino::hardware_display_label(nullptr, "PLAY", false, "Control 1"));
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -407,5 +501,11 @@ int main(int argc, char** argv)
   RUN_TEST(test_trim_page_decision_clears_when_start_is_after_current_content);
   RUN_TEST(test_trim_page_decision_lastcall_finishes_partial_page);
   RUN_TEST(test_tap_tempo_tracker_averages_after_third_tap_and_resets_on_timeout);
+  RUN_TEST(test_hardware_control_mapping_accepts_single_momentary_primary_mapping);
+  RUN_TEST(test_hardware_control_mapping_accepts_ladder_and_analog_momentary_modes);
+  RUN_TEST(test_hardware_control_mapping_rejects_unmapped_or_out_of_range_control);
+  RUN_TEST(test_hardware_control_mapping_rejects_simultaneous_control);
+  RUN_TEST(test_hardware_control_mapping_rejects_non_momentary_mode);
+  RUN_TEST(test_hardware_display_label_prefers_active_tag_then_fallback);
   return UNITY_END();
 }

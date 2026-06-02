@@ -20,6 +20,13 @@ struct TrimPageDecision {
   unsigned int nextSkipped;
 };
 
+struct HardwareControlMapping {
+  bool supported;
+  unsigned char pedal;
+  unsigned char button;
+  const char* reason;
+};
+
 inline long map2(long x, long in_min, long in_max, long out_min, long out_max)
 {
   const long dividend = out_max - out_min;
@@ -206,6 +213,65 @@ inline TrimPageDecision trim_page_decision(unsigned int skipped,
   }
 
   return decision;
+}
+
+inline bool hardware_pedal_mode_is_virtual_pressable(int pedalMode,
+                                                     int momentary1Mode,
+                                                     int momentary2Mode,
+                                                     int momentary3Mode,
+                                                     int ladderMode,
+                                                     int analogMomentaryMode)
+{
+  return pedalMode == momentary1Mode ||
+         pedalMode == momentary2Mode ||
+         pedalMode == momentary3Mode ||
+         pedalMode == ladderMode ||
+         pedalMode == analogMomentaryMode;
+}
+
+inline HardwareControlMapping hardware_control_mapping_for(int pedal1,
+                                                           int button1,
+                                                           int pedal2,
+                                                           int button2,
+                                                           int pedalMode,
+                                                           int pedalCount,
+                                                           int buttonCount,
+                                                           int unusedPedal,
+                                                           int unusedButton,
+                                                           int momentary1Mode,
+                                                           int momentary2Mode,
+                                                           int momentary3Mode,
+                                                           int ladderMode,
+                                                           int analogMomentaryMode)
+{
+  if (pedal1 < 0 || button1 < 0 || pedal1 >= pedalCount || button1 >= buttonCount) {
+    return {false, 0, 0, "Unmapped control"};
+  }
+
+  if (pedal2 != unusedPedal || button2 != unusedButton) {
+    return {false, 0, 0, "Simultaneous control"};
+  }
+
+  if (!hardware_pedal_mode_is_virtual_pressable(pedalMode,
+                                                momentary1Mode,
+                                                momentary2Mode,
+                                                momentary3Mode,
+                                                ladderMode,
+                                                analogMomentaryMode)) {
+    return {false, 0, 0, "Unsupported pedal mode"};
+  }
+
+  return {true, static_cast<unsigned char>(pedal1), static_cast<unsigned char>(button1), ""};
+}
+
+inline const char* hardware_display_label(const char* tagOff,
+                                          const char* tagOn,
+                                          bool active,
+                                          const char* fallback)
+{
+  const char* selected = active ? tagOn : tagOff;
+  if (selected != 0 && selected[0] != 0) return selected;
+  return fallback == 0 ? "" : fallback;
 }
 
 inline bool tap_tempo_timeout(unsigned long lastTap, unsigned long currentTime, unsigned long timeoutMs)
