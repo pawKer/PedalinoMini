@@ -17,6 +17,8 @@ __________           .___      .__  .__                 _____  .__       .__    
 #include <vector>
 #include <Arduino.h>
 
+#include "PedalinoCoreLogic.h"
+
 #define MODEL           "PedalinoMini™"
 
 #define INTERFACES        6
@@ -630,14 +632,7 @@ uint32_t vref = 1100;
 #endif
 
 long map2(long x, long in_min, long in_max, long out_min, long out_max) {
-    const long dividend = out_max - out_min;
-    const long divisor = in_max - in_min;
-    const long delta = x - in_min;
-
-    if (x == in_min) return out_min;
-    if (x == in_max) return out_max;
-
-    return (divisor == 0 ? (x <= in_min ? out_min : out_max) : (delta * dividend + (divisor / 2)) / divisor + out_min);
+    return pedalino::map2(x, in_min, in_max, out_min, out_max);
 }
 
 String getChipId() {

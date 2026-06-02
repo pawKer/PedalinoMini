@@ -12,6 +12,8 @@ __________           .___      .__  .__                 _____  .__       .__    
 #include <algorithm>
 #include <list>
 
+#include "PedalinoCoreLogic.h"
+
 struct event {
   unsigned long timestamp;
   byte          pedal;
@@ -712,10 +714,19 @@ void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2)
     for (byte i = 0; i < incomingTriggerCount[bank] && i < INCOMING_TRIGGERS_MAX; i++) {
       incomingTrigger *trigger = &triggers[i];
 
-      if (trigger->triggerType != midiType) continue;
-      if (trigger->channel != 17 && trigger->channel != channel) continue;
-      if (trigger->number != data1) continue;
-      if (midiType == midi::ControlChange && trigger->valueMode == INCOMING_VALUE_EXACT && trigger->value != data2) continue;
+      if (!pedalino::incoming_trigger_matches(trigger->triggerType,
+                                              trigger->channel,
+                                              trigger->number,
+                                              trigger->valueMode,
+                                              trigger->value,
+                                              midiType,
+                                              channel,
+                                              data1,
+                                              data2,
+                                              midi::ControlChange,
+                                              midi::ProgramChange,
+                                              17,
+                                              INCOMING_VALUE_EXACT)) continue;
 
       for (byte a = 0; a < trigger->actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
         incomingTargetAction *target = &trigger->actions[a];

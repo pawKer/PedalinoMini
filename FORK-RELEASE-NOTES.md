@@ -15,6 +15,7 @@
 10. `TBD` - Per-bank incoming MIDI actions
 11. `TBD` - Config surface consistency checks
 12. `TBD` - Unofficial custom build identity
+13. `TBD` - Native unit test scaffold
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -89,7 +90,16 @@
 - Compatibility note: no firmware runtime behavior, hostname, BLE MIDI name, USB MIDI identity, or config format changed.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
 
+### `TBD` - Native unit test scaffold
+- Added a PlatformIO `native` environment backed by a project-local `native_host` board definition for host-side Unity tests.
+- Extracted dependency-free core helpers for `map2` and incoming MIDI trigger matching into `src/PedalinoCoreLogic.h`, and wired the existing firmware paths through those helpers.
+- Added native Unity coverage for `map2` endpoint/rounding/zero-width behavior and incoming MIDI trigger matching for CC/PC, Any/Exact values, Any channel, wrong channel/number, and unsupported message types.
+- Wired native unit tests into build and CodeQL CI, and added local validation plus native unit tests to the release workflow before firmware packaging.
+- Compatibility note: intended firmware behavior and config format are unchanged; this is a testability and CI-gating change.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_custom_build_identity`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
+
 
 ## Validation
-- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-02, unofficial custom build identity worktree).
+- Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-02, native unit test scaffold worktree).
+- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (7 Unity tests passed, 2026-06-02).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.

@@ -1,0 +1,15 @@
+{
+  "build": {
+    "core": "native",
+    "f_cpu": "0L",
+    "mcu": "native"
+  },
+  "name": "Native Host",
+  "platform": "native",
+  "upload": {
+    "maximum_ram_size": 0,
+    "maximum_size": 0
+  },
+  "url": "https://docs.platformio.org/en/latest/platforms/native.html",
+  "vendor": "PlatformIO"
+}
