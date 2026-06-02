@@ -29,6 +29,8 @@ inline void http_run() {};
 #include <SPIFFS.h>
 #include <nvs.h>
 
+#include "PedalinoCoreLogic.h"
+
 #include "Version.h"
 
 AsyncWebServer          httpServer(80);
@@ -63,7 +65,6 @@ int networks = 0;
 bool trim_page(unsigned int start, unsigned int len, bool lastcall = false) {
 
   static unsigned int skipped = 0;
-  unsigned int fullPageLength;
 
   const unsigned int saved = page.length();
 
@@ -76,25 +77,22 @@ bool trim_page(unsigned int start, unsigned int len, bool lastcall = false) {
     fullPageCompleted = false;
   }
 
-  fullPageLength = skipped + saved;
+  const pedalino::TrimPageDecision decision = pedalino::trim_page_decision(skipped, saved, start, len, lastcall);
 
-  // Start is after last addition
-  if (start > (fullPageLength - 1)) {
+  if (decision.clearPage) {
     page = "";
-    skipped += saved;
+    skipped = decision.nextSkipped;
     return false;
   }
 
-  // Start is in the last addition
-  if (start > (fullPageLength - saved)) {
-    page.remove(0, start - (fullPageLength - saved));
-    skipped += start - (fullPageLength - saved);
+  if (decision.removePrefix > 0) {
+    page.remove(0, decision.removePrefix);
+    skipped = decision.nextSkipped;
   }
 
-  // Finish reached
-  if (fullPageLength >= (start + len) || lastcall) {
-    page.remove(len - 1);
-    skipped = 0;
+  if (decision.complete) {
+    page.remove(decision.trimFrom);
+    skipped = decision.nextSkipped;
     return true;
   }
 

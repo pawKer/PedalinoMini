@@ -9,6 +9,7 @@ __________           .___      .__  .__                 _____  .__       .__    
                                                                        https://github.com/alf45tar/PedalinoMini
  */
 
+#include "PedalinoCoreLogic.h"
 
 byte led_control(byte c, byte l)
 {
@@ -19,42 +20,15 @@ byte led_control(byte c, byte l)
 
 CRGB swap_rgb_order (CRGB color, EOrder order) {
 
-  CRGB swap = CRGB::Black;
-
-  switch (order) {
-    case RGB:
-        swap.red   = color.red;
-        swap.green = color.green;
-        swap.blue  = color.blue;
-      break;
-    case RBG:
-        swap.red   = color.red;
-        swap.green = color.blue;
-        swap.blue  = color.green;
-      break;
-    case GRB:
-        swap.red   = color.green;
-        swap.green = color.red;
-        swap.blue  = color.blue;
-      break;
-    case GBR:
-        swap.red   = color.green;
-        swap.green = color.blue;
-        swap.blue  = color.red;
-      break;
-    case BRG:
-        swap.red   = color.blue;
-        swap.green = color.red;
-        swap.blue  = color.green;
-      break;
-    case BGR:
-        swap.red   = color.blue;
-        swap.green = color.green;
-        swap.blue  = color.red;
-      break;
-  }
-
-  return swap;
+  const pedalino::RgbColor swapped = pedalino::swap_rgb_order({color.red, color.green, color.blue},
+                                                              order,
+                                                              RGB,
+                                                              RBG,
+                                                              GRB,
+                                                              GBR,
+                                                              BRG,
+                                                              BGR);
+  return CRGB(swapped.red, swapped.green, swapped.blue);
 }
 
 void dot_beat() {

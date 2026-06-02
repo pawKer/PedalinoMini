@@ -15,6 +15,7 @@ __________           .___      .__  .__                 _____  .__       .__    
 
 
 #include "MidiTimeCode.h"
+#include "PedalinoCoreLogic.h"
 
 // Allow 3 sec between taps at max (eq. to 20BPM)
 #define TAP_TIMEOUT_MS 3000
@@ -31,55 +32,28 @@ TapTempo::~TapTempo()
 
 void TapTempo::reset()
 {
-  mLastTap = 0;
-  mCurrentReadingPos = 0;
-  for (byte i = 0; i < TAP_NUM_READINGS; i++) mReadings[i] = 0;
+  pedalino::tap_tempo_reset(mLastTap, mCurrentReadingPos, mReadings);
 }
 
 unsigned int TapTempo::tap()
 {
   const unsigned long currentTime = millis();
-  if (mLastTap > 0)
-  {
-    if (timeout(currentTime)) reset();
-
-    mReadings[mCurrentReadingPos % TAP_NUM_READINGS] = calcBpmFromTime(currentTime);
-    mCurrentReadingPos++;
-
-    if (mCurrentReadingPos >= 2)
-    {
-      mLastTap = currentTime;
-      return computeAverage(); // Enough readings to compute average
-    }
-  }
-
-  mLastTap = currentTime;
-  return 0;
+  return pedalino::tap_tempo_tap(mLastTap, mCurrentReadingPos, mReadings, currentTime, TAP_TIMEOUT_MS);
 }
 
 bool TapTempo::timeout(const unsigned long currentTime) const
 {
-  return ((currentTime - mLastTap) > TAP_TIMEOUT_MS) ? true : false;
+  return pedalino::tap_tempo_timeout(mLastTap, currentTime, TAP_TIMEOUT_MS);
 }
 
 unsigned int TapTempo::calcBpmFromTime(unsigned long currentTime) const
 {
-  if (mLastTap == 0 || currentTime <= mLastTap)
-    return 0;
-
-  const unsigned long msInAMinute = 1000 * 60;
-  return msInAMinute / (currentTime - mLastTap);
+  return pedalino::tap_tempo_bpm_from_time(mLastTap, currentTime);
 }
 
 unsigned int TapTempo::computeAverage() const
 {
-  unsigned int sum = 0;
-  const byte count = min(mCurrentReadingPos, (byte)TAP_NUM_READINGS);
-  for (byte i = 0; i < count; i++ )
-  {
-    sum += mReadings[i];
-  }
-  return (sum + (count / 2 + 1))/ count;
+  return pedalino::tap_tempo_average(mCurrentReadingPos, mReadings);
 }
 
 ///////////////////////////////////// MidiTimeCode

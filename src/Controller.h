@@ -50,11 +50,11 @@ inline void set_slot_display_state(byte bank, byte slot, bool state)
 inline void set_slot_display_state_from_tags(action* act)
 {
   if (act == nullptr || act->slot >= SLOTS) return;
-  if (act->tag0[0] == 0 || act->tag1[0] == 0) return;
 
-  if (strcmp(lastPedalName, act->tag1) == 0) {
+  const int state = pedalino::slot_state_from_tags(act->tag0, act->tag1, lastPedalName, -1, 0, 1);
+  if (state == 1) {
     set_slot_display_state(currentBank, act->slot, true);
-  } else if (strcmp(lastPedalName, act->tag0) == 0) {
+  } else if (state == 0) {
     set_slot_display_state(currentBank, act->slot, false);
   }
 }
@@ -70,36 +70,20 @@ inline void set_last_pedal_name_label(const char* label, bool overwrite = false)
 inline const char* preferred_action_overlay_label(action* act, byte event)
 {
   if (act == nullptr) return "";
-
-  const bool hasTagOff = act->tag0[0] != 0;
-  const bool hasTagOn  = act->tag1[0] != 0;
-
-  if (hasTagOff && hasTagOn) {
-    return event == PED_EVENT_RELEASE ? act->tag0 : act->tag1;
-  }
-
-  if (hasTagOn)  return act->tag1;
-  if (hasTagOff) return act->tag0;
-
-  return "";
+  return pedalino::preferred_action_overlay_label(act->tag0, act->tag1, event, PED_EVENT_RELEASE);
 }
 
 unsigned int map_analog(byte p, unsigned int value)
 {
   p = constrain(p, 0, PEDALS - 1);
-  value = constrain(value, pedals[p].expZero, pedals[p].expMax);                   // make sure that the analog value is between the minimum and maximum value
-  value = map2(value, pedals[p].expZero, pedals[p].expMax, 0, ADC_RESOLUTION - 1); // map the value from [minimumValue, maximumValue] to [0, ADC_RESOLUTION-1]
-  switch (pedals[p].analogResponse) {
-    case PED_LINEAR:
-      break;
-    case PED_LOG:
-      value = round((ADC_RESOLUTION-1)*log1p(value)/log(ADC_RESOLUTION));
-      break;
-    case PED_ANTILOG:
-      value = round((exp(3*value/(double)(ADC_RESOLUTION-1))-1)/(expm1(3))*(ADC_RESOLUTION-1));
-      break;
-  }
-  return value;
+  return pedalino::map_analog_value(value,
+                                    pedals[p].expZero,
+                                    pedals[p].expMax,
+                                    ADC_RESOLUTION,
+                                    pedals[p].analogResponse,
+                                    PED_LINEAR,
+                                    PED_LOG,
+                                    PED_ANTILOG);
 }
 
 void leds_off()
@@ -711,25 +695,19 @@ void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2)
     incomingTrigger *triggers = incomingTriggers[bank];
     if (triggers == nullptr) return;
 
-    for (byte i = 0; i < incomingTriggerCount[bank] && i < INCOMING_TRIGGERS_MAX; i++) {
-      incomingTrigger *trigger = &triggers[i];
-
-      if (!pedalino::incoming_trigger_matches(trigger->triggerType,
-                                              trigger->channel,
-                                              trigger->number,
-                                              trigger->valueMode,
-                                              trigger->value,
-                                              midiType,
-                                              channel,
-                                              data1,
-                                              data2,
-                                              midi::ControlChange,
-                                              midi::ProgramChange,
-                                              17,
-                                              INCOMING_VALUE_EXACT)) continue;
-
-      for (byte a = 0; a < trigger->actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
-        incomingTargetAction *target = &trigger->actions[a];
+    pedalino::run_matching_incoming_triggers(triggers,
+                                             min((int)incomingTriggerCount[bank], (int)INCOMING_TRIGGERS_MAX),
+                                             midiType,
+                                             channel,
+                                             data1,
+                                             data2,
+                                             midi::ControlChange,
+                                             midi::ProgramChange,
+                                             17,
+                                             INCOMING_VALUE_EXACT,
+                                             [&](const incomingTrigger& trigger) {
+      for (byte a = 0; a < trigger.actionCount && a < INCOMING_TRIGGER_ACTIONS_MAX; a++) {
+        const incomingTargetAction *target = &trigger.actions[a];
         switch (target->targetAction) {
           case PED_ACTION_LED_COLOR: {
             byte led = constrain(target->led, 1, LEDS) - 1;
@@ -756,11 +734,10 @@ void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2)
             break;
         }
       }
-    }
+    });
   };
 
-  run_bank(0);
-  if (currentBank != 0) run_bank(currentBank);
+  pedalino::run_incoming_bank_scopes(currentBank, run_bank);
 }
 //
 //
