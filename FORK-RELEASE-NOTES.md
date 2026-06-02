@@ -13,6 +13,7 @@
 8. `TBD` - Pending local documentation/workflow updates
 9. `TBD` - HX Stomp looper bank config refresh
 10. `TBD` - Per-bank incoming MIDI actions
+11. `TBD` - Config surface consistency checks
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -74,7 +75,13 @@
 - Updated JSON/schema support so each `IncomingTriggers` entry persists its owning bank.
 - Compatibility note: legacy flat `IncomingActions` still requires manual recreation, but prior grouped `IncomingTriggers` configs now load into `Global` automatically when their trigger-level `Bank` field is missing; this migration was confirmed on the LilyGO T-Display S3 with existing stored rules.
 
+### `TBD` - Config surface consistency checks
+- Added a lightweight Python validation script for action string mappings, JSON schema action enums, and key Web UI labels.
+- Added unit coverage for the validation helpers and wired the same local validation script into CI before PlatformIO firmware/filesystem builds.
+- Compatibility note: no firmware behavior, config format, or web UI behavior changed.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
+
 
 ## Validation
-- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-02, merged `custom-open-source` with per-bank incoming MIDI actions).
+- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-02, config surface consistency checks worktree).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.
