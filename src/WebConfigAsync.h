@@ -321,6 +321,12 @@ void hardware_send_state(bool force = false)
   }
 }
 
+void hardware_send_state_to_client(AsyncWebSocketClient* client)
+{
+  if (client == nullptr) return;
+  client->text(hardware_state_json());
+}
+
 bool hardware_live_transport_available()
 {
   return httpUsername.isEmpty() || !httpPassword.isEmpty();
@@ -3730,6 +3736,7 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("}");
   page += F("function hardwareConnect(){const protocol=location.protocol==='https:'?'wss://':'ws://';hardwareSocket=new WebSocket(protocol+location.host+'/ws');");
   page += F("hardwareSocket.onopen=function(){hardwareSetStatus('Connected','bg-success');hardwareSend('hardware-state');};");
+  page += F("hardwareSocket.onmessage=function(event){if(typeof event.data!=='string')return;try{hardwareApplyState(JSON.parse(event.data));}catch(e){}};");
   page += F("hardwareSocket.onerror=function(){hardwareSetStatus('Error','bg-danger');};");
   page += F("hardwareSocket.onclose=function(){hardwareSetStatus('Disconnected','bg-secondary');setTimeout(hardwareConnect,1500);};");
   page += F("}");
@@ -8095,7 +8102,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
           hardware_send_state(true);
         }
         else if (strcmp(message, "hardware-state") == 0) {
-          hardware_send_state(true);
+          hardware_send_state_to_client(client);
         }
       } else {
         for (size_t i = 0; i < info->len; i++) {

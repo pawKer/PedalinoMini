@@ -160,6 +160,22 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertIn("pagehide", self.web_config)
         self.assertIn("beforeunload", self.web_config)
 
+    def test_hardware_initial_state_has_direct_websocket_reply(self) -> None:
+        self.assertIn("void hardware_send_state_to_client", self.web_config)
+        self.assertIn("client->text(hardware_state_json())", self.web_config)
+        self.assertIn("hardware_send_state_to_client(client);", self.web_config)
+        self.assertRegex(
+            self.web_config,
+            r"hardwareSocket\.onmessage=function\(event\)\{[^}]*hardwareApplyState\(JSON\.parse\(event\.data\)\)",
+        )
+        connect_block = re.search(
+            r"if\(type == WS_EVT_CONNECT\)\{(?P<body>.*?)\} else if\(type == WS_EVT_DISCONNECT\)",
+            self.web_config,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(connect_block)
+        self.assertNotIn("hardware_send_state_to_client(client);", connect_block.group("body"))
+
     def test_hardware_websocket_control_path_is_queued_and_bounded(self) -> None:
         self.assertIn("controller_queue_virtual_control_event", self.web_config)
         self.assertIn("hardware_release_active_virtual_controls", self.web_config)
