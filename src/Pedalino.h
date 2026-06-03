@@ -21,7 +21,7 @@ __________           .___      .__  .__                 _____  .__       .__    
 
 #define MODEL           "PedalinoMini™"
 
-#define INTERFACES        6
+#define INTERFACES        7
 #define PROFILES          3
 #define BANKS            21   // 20 banks + 1 bank for global actions
 #define PEDALS            6   // real number of pedals is board specific (see below)
@@ -42,6 +42,7 @@ __________           .___      .__  .__                 _____  .__       .__    
 #define MAXACTIONNAME    16
 #define MAXBANKNAME      16
 #define MAXSEQUENCENAME  16
+#define MAXWLEDADDRESS   64
 #define INCOMING_TRIGGERS_MAX        64
 #define INCOMING_TRIGGER_ACTIONS_MAX 8
 
@@ -232,9 +233,16 @@ using namespace ace_button;
 #define PED_ACTION_MTC_OFF            45
 #define PED_ACTION_MTC_TIME_SIGNATURE 46
 #define PED_ACTION_SET_SLOT_STATE     47
+#define PED_ACTION_WLED               48
 #define PED_OSC_MESSAGE               50
 #define PED_ACTION_SCAN               98
 #define PED_ACTION_POWER_ON_OFF       99
+
+#define PED_WLED_POWER        pedalino::WLED_COMMAND_POWER
+#define PED_WLED_PRESET       pedalino::WLED_COMMAND_PRESET
+#define PED_WLED_BRIGHTNESS   pedalino::WLED_COMMAND_BRIGHTNESS
+#define PED_WLED_SOLID_COLOR  pedalino::WLED_COMMAND_SOLID_COLOR
+#define PED_WLED_EFFECT       pedalino::WLED_COMMAND_EFFECT
 
 #define PED_NONE                  1
 #define PED_MOMENTARY1            2
@@ -308,6 +316,7 @@ const char *pedalAnalogResponse[] = {"Linear", "Log", "Antilog"};
 #define PED_IPMIDI              3
 #define PED_BLEMIDI             4
 #define PED_OSC                 5
+#define PED_WLED                6
 
 #define PED_DISABLE             0
 #define PED_ENABLE              1
@@ -442,17 +451,17 @@ struct message {
   byte                   midiCode;         /* Program Change, Control Code, Note or Pitch Bend value to send */
   byte                   midiValue;        /* Control Code value, Note velocity */
   byte                   midiChannel;      /* MIDI channel 1-16, 0 = None, 17 = All */
-  byte                   led;              // 0..LEDS-1 existing leds, if equal to LEDS ...
+  byte                   led;              // 0..LEDS-1 existing leds, if equal to LEDS ...; WLED intensity
   uint32_t               color;
 };
 
 struct incomingTargetAction {
-  byte                   targetAction;     // PED_ACTION_LED_COLOR / PED_ACTION_SET_SLOT_STATE / PED_ACTION_BANK
-  byte                   led;              // 1..LEDS
+  byte                   targetAction;     // PED_ACTION_LED_COLOR / PED_ACTION_SET_SLOT_STATE / PED_ACTION_BANK / PED_ACTION_WLED
+  byte                   led;              // 1..LEDS; WLED value
   uint32_t               color;            // 0xRRGGBB
-  byte                   slot;             // 1..SLOTS
-  byte                   state;            // 0/1
-  byte                   bank;             // 1..20
+  byte                   slot;             // 1..SLOTS; WLED speed
+  byte                   state;            // 0/1; WLED intensity
+  byte                   bank;             // 1..20; WLED command
 };
 
 struct incomingTrigger {
@@ -493,7 +502,8 @@ interface interfaces[] = { "USB MIDI   ", 0,          PED_ENABLE + PED_SHOW, 0, 
                            "RTP-MIDI   ", PED_ENABLE, PED_ENABLE + PED_SHOW, 0, 0,
                            "ipMIDI     ", PED_ENABLE, PED_ENABLE + PED_SHOW, 0, 0,
                            "BLE MIDI   ", PED_ENABLE, PED_ENABLE + PED_SHOW, 0, 0,
-                           "OSC        ", PED_ENABLE, PED_ENABLE + PED_SHOW, 0, 0
+                           "OSC        ", PED_ENABLE, PED_ENABLE + PED_SHOW, 0, 0,
+                           "WLED       ", PED_DISABLE, PED_DISABLE, PED_DISABLE, PED_DISABLE
                          };                       // Interfaces Setup
 
 AceButton       bootButton;
@@ -576,6 +586,7 @@ uint32_t maxAllocation;
 
 String wifiSSID     = "";
 String wifiPassword = "";
+String wledAddress  = "";
 int    wifiLevel    = 0;
 
 uint16_t  batteryVoltage = 4200;  // mV

@@ -54,6 +54,7 @@ __________           .___      .__  .__                 _____  .__       .__    
 #include "UdpMidiIn.h"
 #include "BLEMidiIn.h"
 #include "Config.h"
+#include "WLEDHttp.h"
 #if defined(ARDUINO_LILYGO_T_DISPLAY) || defined(ARDUINO_LILYGO_T_DISPLAY_S3)
 #include "DisplayTFT.h"
 #else
@@ -623,6 +624,7 @@ void loop0(void * pvParameters)
     if (wifiEnabled) {
 
       http_run();
+      wled_run();
 
       // Run OTA update service
       ota_handle();

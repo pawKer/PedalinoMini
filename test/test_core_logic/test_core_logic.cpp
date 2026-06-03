@@ -35,6 +35,7 @@ const int kGrb = 2;
 const int kGbr = 3;
 const int kBrg = 4;
 const int kBgr = 5;
+const unsigned int kWledBlue = 0x0066ff;
 
 struct TestAction {
   int targetAction;
@@ -378,6 +379,42 @@ void test_tap_tempo_tracker_averages_after_third_tap_and_resets_on_timeout()
   TEST_ASSERT_EQUAL_INT(1, readingPos);
 }
 
+void test_wled_payload_builds_power_commands()
+{
+  char payload[96];
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_POWER, 0, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"on\":false}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_POWER, 1, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"on\":true}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_POWER, 2, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"on\":\"t\"}", payload);
+}
+
+void test_wled_payload_builds_preset_brightness_and_color()
+{
+  char payload[96];
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_PRESET, 7, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"ps\":7}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_BRIGHTNESS, 180, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"bri\":180}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_SOLID_COLOR, 0, 0, 0, kWledBlue, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"seg\":[{\"fx\":0,\"col\":[[0,102,255]]}]}", payload);
+}
+
+void test_wled_payload_builds_effect_with_speed_and_intensity()
+{
+  char payload[96];
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_EFFECT, 9, 128, 127, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"seg\":[{\"fx\":9,\"sx\":128,\"ix\":127}]}", payload);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -407,5 +444,8 @@ int main(int argc, char** argv)
   RUN_TEST(test_trim_page_decision_clears_when_start_is_after_current_content);
   RUN_TEST(test_trim_page_decision_lastcall_finishes_partial_page);
   RUN_TEST(test_tap_tempo_tracker_averages_after_third_tap_and_resets_on_timeout);
+  RUN_TEST(test_wled_payload_builds_power_commands);
+  RUN_TEST(test_wled_payload_builds_preset_brightness_and_color);
+  RUN_TEST(test_wled_payload_builds_effect_with_speed_and_intensity);
   return UNITY_END();
 }

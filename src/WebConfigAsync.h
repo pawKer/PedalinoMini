@@ -61,6 +61,31 @@ bool fullPageCompleted = false;
 
 int networks = 0;
 
+void append_wled_command_options(byte selected)
+{
+  struct WLEDCommandOption {
+    byte value;
+    const char* label;
+  };
+
+  const WLEDCommandOption options[] = {
+    {PED_WLED_POWER, "Power"},
+    {PED_WLED_PRESET, "Preset"},
+    {PED_WLED_BRIGHTNESS, "Brightness"},
+    {PED_WLED_SOLID_COLOR, "Solid Color"},
+    {PED_WLED_EFFECT, "Effect"},
+  };
+
+  for (byte i = 0; i < sizeof(options) / sizeof(options[0]); i++) {
+    page += F("<option value='");
+    page += options[i].value;
+    page += F("'");
+    if (selected == options[i].value) page += F(" selected");
+    page += F(">");
+    page += options[i].label;
+    page += F("</option>");
+  }
+}
 
 bool trim_page(unsigned int start, unsigned int len, bool lastcall = false) {
 
@@ -1693,6 +1718,11 @@ void get_actions_page(unsigned int start, unsigned int len) {
     if (act->midiMessage == PED_ACTION_SET_SLOT_STATE) page += F(" selected");
     page += F(">Set Slot State</option>");
     page += F("<option value='");
+    page += PED_ACTION_WLED;
+    page += F("'");
+    if (act->midiMessage == PED_ACTION_WLED) page += F(" selected");
+    page += F(">WLED</option>");
+    page += F("<option value='");
     page += PED_ACTION_REPEAT;
     page += F("'");
     if (act->midiMessage == PED_ACTION_REPEAT) page += F(" selected");
@@ -1787,6 +1817,22 @@ void get_actions_page(unsigned int start, unsigned int len) {
     page += F("' id='sequenceLabel");
     page += i;
     page += F("'>Sequence</label>");
+    page += F("</div>");
+    page += F("<div class='form-floating' hidden id='wledCommandDiv");
+    page += i;
+    page += F("'>");
+    page += F("<select class='form-select' id='wledCommandSelect");
+    page += i;
+    page += F("' name='wledcommand");
+    page += i;
+    page += F("'>");
+    append_wled_command_options(act->midiChannel);
+    page += F("</select>");
+    page += F("<label for='wledCommandSelect");
+    page += i;
+    page += F("' id='wledCommandLabel");
+    page += i;
+    page += F("'>Command</label>");
     page += F("</div>");
     page += F("</div>");
 
@@ -2087,6 +2133,7 @@ void get_actions_page(unsigned int start, unsigned int len) {
 
   page += F("   document.getElementById('channelDiv'    + i).removeAttribute('hidden');"
             "   document.getElementById('sequenceDiv'   + i).setAttribute('hidden', 'hidden');"
+            "   document.getElementById('wledCommandDiv'+ i).setAttribute('hidden', 'hidden');"
             "   document.getElementById('codeLabel'     + i).textContent = 'Code';"
             "   document.getElementById('fromLabel'     + i).textContent = 'From Value';"
             "   document.getElementById('toLabel'       + i).textContent = 'To Value';"
@@ -2095,9 +2142,13 @@ void get_actions_page(unsigned int start, unsigned int len) {
             "   document.getElementById('color0Label'   + i).textContent = 'Off';"
             "   document.getElementById('color1Label'   + i).textContent = 'On';"
             "   document.getElementById('channelSelect' + i).disabled = false;"
+            "   document.getElementById('wledCommandSelect' + i).disabled = true;"
             "   document.getElementById('codeInput'     + i).disabled = false;"
             "   document.getElementById('fromInput'     + i).disabled = false;"
             "   document.getElementById('toInput'       + i).disabled = false;"
+            "   document.getElementById('codeInput'     + i).max = '127';"
+            "   document.getElementById('fromInput'     + i).max = '127';"
+            "   document.getElementById('toInput'       + i).max = '127';"
             "   document.getElementById('tagOffInput'   + i).disabled = false;"
             "   document.getElementById('tagOnInput'    + i).disabled = false;"
             "   document.getElementById('oscAddress'    + i).disabled = true;"
@@ -2377,6 +2428,25 @@ void get_actions_page(unsigned int start, unsigned int len) {
 
   if (trim_page(start, len)) return;
 
+  page += F("     case 'WLED':"
+            "       document.getElementById('channelDiv'    + i).setAttribute('hidden', 'hidden');"
+            "       document.getElementById('wledCommandDiv'+ i).removeAttribute('hidden');"
+            "       document.getElementById('wledCommandSelect' + i).disabled = false;"
+            "       document.getElementById('codeLabel'     + i).textContent = 'Value';"
+            "       document.getElementById('fromLabel'     + i).textContent = 'Speed';"
+            "       document.getElementById('toLabel'       + i).textContent = 'Intensity';"
+            "       document.getElementById('color0Label'   + i).textContent = 'Color';"
+            "       document.getElementById('codeInput'     + i).max = '255';"
+            "       document.getElementById('fromInput'     + i).max = '255';"
+            "       document.getElementById('toInput'       + i).max = '255';"
+            "       document.getElementById('channelSelect' + i).disabled = true;"
+            "       document.getElementById('ledSelect'     + i).disabled = true;"
+            "       document.getElementById('color1Input'   + i).disabled = true;"
+            "       document.getElementById('slotSelect'    + i).disabled = true;"
+            "       break;");
+
+  if (trim_page(start, len)) return;
+
   page += F("     case 'Start':"
             "     case 'Stop':"
             "     case 'Continue':"
@@ -2401,7 +2471,8 @@ void get_actions_page(unsigned int start, unsigned int len) {
             "       document.getElementById('slotSelect'    + i).disabled = true;"
             "       break;"
             "   }"
-            "   if (document.getElementById('sendSelect' + i).options[document.getElementById('sendSelect' + i).selectedIndex].text != 'Set Slot State')"
+            "   let selectedActionText = document.getElementById('sendSelect' + i).options[document.getElementById('sendSelect' + i).selectedIndex].text;"
+            "   if (selectedActionText != 'Set Slot State' && selectedActionText != 'WLED')"
             "     document.getElementById('slotSelect'  + i).disabled = false;"
             "};");
   page += F("</script>");
@@ -3557,6 +3628,8 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
     page += F("<hr>");
     page += F("<h6 class='mb-2'>Actions</h6>");
 
+    if (trim_page(start, len)) return;
+
     if (bankTriggers[i].actionCount == 0) {
       page += F("<div class='alert alert-secondary mb-2'>This trigger has no actions. Use <strong>Add Action</strong>.</div>");
       if (trim_page(start, len)) return;
@@ -3590,6 +3663,11 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
       page += F("'");
       if (bankTriggers[i].actions[a].targetAction == PED_ACTION_BANK) page += F(" selected");
       page += F(">Set Bank</option>");
+      page += F("<option value='");
+      page += PED_ACTION_WLED;
+      page += F("'");
+      if (bankTriggers[i].actions[a].targetAction == PED_ACTION_WLED) page += F(" selected");
+      page += F(">WLED</option>");
       page += F("</select></div>");
 
       page += F("<div class='col-12 col-md-6 col-lg-4' id='inLedGroup");
@@ -3622,6 +3700,8 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
       page += color;
       page += F("'></div>");
       page += F("</div></div>");
+
+      if (trim_page(start, len)) return;
 
       page += F("<div class='col-6 col-md-3 col-lg-2' id='inSlotGroup");
       page += triggerIdx;
@@ -3680,6 +3760,51 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
       }
       page += F("</select></div>");
 
+      page += F("<div class='col-12 col-lg-8' id='inWLEDGroup");
+      page += triggerIdx;
+      page += F("_");
+      page += actionIdx;
+      page += F("'><div class='row g-2'>");
+      page += F("<div class='col-12 col-md-4 col-lg-3'><label class='form-label mb-1'>Command</label><select class='form-select' name='act-wled-command-");
+      page += triggerIdx;
+      page += F("-");
+      page += actionIdx;
+      page += F("'>");
+      append_wled_command_options(bankTriggers[i].actions[a].targetAction == PED_ACTION_WLED ? bankTriggers[i].actions[a].bank : PED_WLED_POWER);
+      page += F("</select></div>");
+      page += F("<div class='col-6 col-md-4 col-lg-2'><label class='form-label mb-1'>Value</label><input class='form-control' type='number' min='0' max='255' name='act-wled-value-");
+      page += triggerIdx;
+      page += F("-");
+      page += actionIdx;
+      page += F("' value='");
+      page += (bankTriggers[i].actions[a].targetAction == PED_ACTION_WLED ? bankTriggers[i].actions[a].led : 2);
+      page += F("'></div>");
+      page += F("<div class='col-6 col-md-4 col-lg-2'><label class='form-label mb-1'>Speed</label><input class='form-control' type='number' min='0' max='255' name='act-wled-speed-");
+      page += triggerIdx;
+      page += F("-");
+      page += actionIdx;
+      page += F("' value='");
+      page += (bankTriggers[i].actions[a].targetAction == PED_ACTION_WLED ? bankTriggers[i].actions[a].slot : 0);
+      page += F("'></div>");
+      page += F("<div class='col-6 col-md-4 col-lg-2'><label class='form-label mb-1'>Intensity</label><input class='form-control' type='number' min='0' max='255' name='act-wled-intensity-");
+      page += triggerIdx;
+      page += F("-");
+      page += actionIdx;
+      page += F("' value='");
+      page += (bankTriggers[i].actions[a].targetAction == PED_ACTION_WLED ? bankTriggers[i].actions[a].state : 0);
+      page += F("'></div>");
+      page += F("<div class='col-6 col-md-4 col-lg-3'><label class='form-label mb-1'>Color</label><input class='form-control form-control-color w-100' type='color' name='act-wled-color-");
+      page += triggerIdx;
+      page += F("-");
+      page += actionIdx;
+      page += F("' value='");
+      snprintf(color, 8, "#%06x", bankTriggers[i].actions[a].color & 0xFFFFFF);
+      page += color;
+      page += F("'></div>");
+      page += F("</div></div>");
+
+      if (trim_page(start, len)) return;
+
       page += F("<div class='col-12 col-md-2'>");
       page += F("<button type='submit' class='btn btn-outline-danger btn-sm w-100' name='action' value='delete-action");
       page += triggerIdx;
@@ -3723,6 +3848,7 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
   page += F("const sg=document.getElementById('inSlotGroup'+i+'_'+a);");
   page += F("const stg=document.getElementById('inStateGroup'+i+'_'+a);");
   page += F("const bg=document.getElementById('inBankGroup'+i+'_'+a);");
+  page += F("const wg=document.getElementById('inWLEDGroup'+i+'_'+a);");
   page += F("const av=action?parseInt(action.value,10):0;");
   page += F("if(lg)lg.style.display=(av==");
   page += PED_ACTION_LED_COLOR;
@@ -3735,6 +3861,9 @@ void get_incoming_actions_page(unsigned int start, unsigned int len) {
   page += F(")?'':'none';");
   page += F("if(bg)bg.style.display=(av==");
   page += PED_ACTION_BANK;
+  page += F(")?'':'none';");
+  page += F("if(wg)wg.style.display=(av==");
+  page += PED_ACTION_WLED;
   page += F(")?'':'none';");
   page += F("}");
   page += F("document.addEventListener('DOMContentLoaded',function(){");
@@ -3812,6 +3941,7 @@ void get_interfaces_page(unsigned int start, unsigned int len) {
   page += F("<div class='container'>");
   page += F("<div class='row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 row-cols-xxl-6 g-2 g-md-3 g-xl-4'>");
   for (unsigned int i = 1; i <= INTERFACES; i++) {
+    const unsigned int interfaceIndex = i - 1;
     page += F("<div class='col'>");
     page += F("<div class='card h-100'>");
     page += F("<h6 class='card-header'>");
@@ -3819,9 +3949,31 @@ void get_interfaces_page(unsigned int start, unsigned int len) {
     page += F("<path d='M4.5 5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM3 4.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z'/>");
     page += F("<path d='M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2H8.5v3a1.5 1.5 0 0 1 1.5 1.5h5.5a.5.5 0 0 1 0 1H10A1.5 1.5 0 0 1 8.5 14h-1A1.5 1.5 0 0 1 6 12.5H.5a.5.5 0 0 1 0-1H6A1.5 1.5 0 0 1 7.5 10V7H2a2 2 0 0 1-2-2V4zm1 0v1a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1zm6 7.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5z'/>");
     page += F("</svg> ");
-    page += interfaces[i-1].name;
+    page += interfaces[interfaceIndex].name;
     page += F("</h6>");
     page += F("<div class='card-body'>");
+
+    if (interfaceIndex == PED_WLED) {
+      page += F("<div class='form-check form-switch'>");
+      page += F("<input class='form-check-input' type='checkbox' id='outCheck");
+      page += i;
+      page += F("' name='out");
+      page += i;
+      page += F("'");
+      if (IS_INTERFACE_ENABLED(interfaces[interfaceIndex].midiOut)) page += F(" checked");
+      page += F(">");
+      page += F("<label class='form-check-label' for='outCheck");
+      page += i;
+      page += F("'>Enabled</label>");
+      page += F("</div>");
+      page += F("</div>");
+      page += F("</div>");
+      page += F("</div>");
+
+      if (trim_page(start, len)) return;
+      continue;
+    }
+
     page += F("<div class='form-check form-switch'>");
     page += F("<input class='form-check-input' type='checkbox' id='inCheck");
     page += i;
@@ -4118,6 +4270,11 @@ void get_sequences_page(unsigned int start, unsigned int len) {
     page += F("'");
     if (sequences[s-1][i-1].midiMessage == PED_ACTION_LED_COLOR) page += F(" selected");
     page += F(">Set Led Color</option>");
+    page += F("<option value='");
+    page += PED_ACTION_WLED;
+    page += F("'");
+    if (sequences[s-1][i-1].midiMessage == PED_ACTION_WLED) page += F(" selected");
+    page += F(">WLED</option>");
     page += F("</select>");
     page += F("<label for='messageSelect");
     page += i;
@@ -4192,6 +4349,20 @@ void get_sequences_page(unsigned int start, unsigned int len) {
     page += i;
     page += F("'>Sequence</label>");
     page += F("</div>");
+    page += F("<div class='form-floating' hidden id='wledCommandDiv");
+    page += i;
+    page += F("'>");
+    page += F("<select class='form-select' id='wledCommandSelect");
+    page += i;
+    page += F("' name='wledcommand");
+    page += i;
+    page += F("'>");
+    append_wled_command_options(sequences[s-1][i-1].midiChannel);
+    page += F("</select>");
+    page += F("<label for='wledCommandSelect");
+    page += i;
+    page += F("'>Command</label>");
+    page += F("</div>");
     page += F("</div>");
 
     if (trim_page(start, len)) return;
@@ -4235,6 +4406,25 @@ void get_sequences_page(unsigned int start, unsigned int len) {
     page += F("' id='valueLabel");
     page += i;
     page += F("'>Value</label>");
+    page += F("</div>");
+    page += F("</div>");
+
+    if (trim_page(start, len)) return;
+
+    page += F("<div class='col'>");
+    page += F("<div class='form-floating' hidden id='wledIntensityDiv");
+    page += i;
+    page += F("'>");
+    page += F("<input type='number' class='form-control' id='wledIntensityInput");
+    page += i;
+    page += F("' name='wledintensity");
+    page += i;
+    page += F("' min='0' max='255' value='");
+    page += sequences[s-1][i-1].led;
+    page += F("'>");
+    page += F("<label for='wledIntensityInput");
+    page += i;
+    page += F("'>Intensity</label>");
     page += F("</div>");
     page += F("</div>");
 
@@ -4357,11 +4547,17 @@ void get_sequences_page(unsigned int start, unsigned int len) {
             "   document.getElementById('channelLabel'  + i).textContent = 'Channel';"
             "   document.getElementById('channelDiv'    + i).removeAttribute('hidden');"
             "   document.getElementById('sequenceDiv'   + i).setAttribute('hidden', 'hidden');"
+            "   document.getElementById('wledCommandDiv'+ i).setAttribute('hidden', 'hidden');"
+            "   document.getElementById('wledIntensityDiv'+ i).setAttribute('hidden', 'hidden');"
             "   document.getElementById('codeLabel'     + i).textContent = 'Code';"
             "   document.getElementById('valueLabel'    + i).textContent = 'Value';"
             "   document.getElementById('channelSelect' + i).disabled = false;"
+            "   document.getElementById('wledCommandSelect' + i).disabled = true;"
             "   document.getElementById('codeInput'     + i).disabled = false;"
             "   document.getElementById('valueInput'    + i).disabled = false;"
+            "   document.getElementById('wledIntensityInput' + i).disabled = true;"
+            "   document.getElementById('codeInput'     + i).max = '127';"
+            "   document.getElementById('valueInput'    + i).max = '127';"
             "   document.getElementById('ledSelect'     + i).disabled = false;"
             "   document.getElementById('colorInput'    + i).disabled = false;"
             "   switch (document.getElementById('messageSelect' + i).options[document.getElementById('messageSelect' + i).selectedIndex].text) {"
@@ -4408,6 +4604,19 @@ void get_sequences_page(unsigned int start, unsigned int len) {
             "       document.getElementById('channelSelect' + i).disabled = true;"
             "       document.getElementById('codeInput'     + i).disabled = true;"
             "       document.getElementById('valueInput'    + i).disabled = true;"
+            "       break;"
+            "     case 'WLED':"
+            "       document.getElementById('channelDiv'    + i).setAttribute('hidden', 'hidden');"
+            "       document.getElementById('wledCommandDiv'+ i).removeAttribute('hidden');"
+            "       document.getElementById('wledIntensityDiv'+ i).removeAttribute('hidden');"
+            "       document.getElementById('wledCommandSelect' + i).disabled = false;"
+            "       document.getElementById('wledIntensityInput' + i).disabled = false;"
+            "       document.getElementById('codeLabel'     + i).textContent = 'Value';"
+            "       document.getElementById('valueLabel'    + i).textContent = 'Speed';"
+            "       document.getElementById('codeInput'     + i).max = '255';"
+            "       document.getElementById('valueInput'    + i).max = '255';"
+            "       document.getElementById('channelSelect' + i).disabled = true;"
+            "       document.getElementById('ledSelect'     + i).disabled = true;"
             "       break;"
             "     case 'Start':"
             "     case 'Stop':"
@@ -4618,6 +4827,14 @@ void get_options_page(unsigned int start, unsigned int len) {
   page += F("Connect to a wifi network using SSID and password. WiFi networks list is updated only on boot.<br>");
   page += F("Pedalino will be restarted if it is connected to a WiFi network and you change them.");
   page += F("</small>");
+  page += F("<div class='form-floating mt-2'>");
+  page += F("<input class='form-control' type='text' maxlength='");
+  page += MAXWLEDADDRESS;
+  page += F("' id='wledAddress' name='wledAddress' value='");
+  page += wledAddress;
+  page += F("'>");
+  page += F("<label for='wledAddress'>WLED Address</label>");
+  page += F("</div>");
   page += F("</div>");
   page += F("</div>");
   page += F("</div>");
@@ -6426,6 +6643,21 @@ void http_handle_post_actions(AsyncWebServerRequest *request) {
             act->tag0[0]      = 0;
             act->tag1[0]      = 0;
             break;
+          case PED_ACTION_WLED: {
+            unsigned int red = 0, green = 0, blue = 0;
+            act->midiChannel  = constrain(request->arg(String("wledcommand") + String(i)).toInt(), PED_WLED_POWER, PED_WLED_EFFECT);
+            act->midiCode     = constrain(request->arg(String("code")        + String(i)).toInt(), 0, 255);
+            act->midiValue1   = constrain(request->arg(String("from")        + String(i)).toInt(), 0, 255);
+            act->midiValue2   = constrain(request->arg(String("to")          + String(i)).toInt(), 0, 255);
+            sscanf(request->arg(String("color0-") + String(i)).c_str(), "#%02x%02x%02x", &red, &green, &blue);
+            act->color0       = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+            wled_config_normalize(act->midiChannel, act->midiCode, act->midiValue1, act->midiValue2, act->color0);
+            act->led          = 255;
+            act->color1       = CRGB::Black;
+            act->slot         = SLOTS;
+            act->oscAddress[0] = 0;
+            break;
+          }
           case PED_ACTION_BANK_PLUS:
           case PED_ACTION_BANK_MINUS:
           case PED_ACTION_PROFILE_PLUS:
@@ -6767,8 +6999,25 @@ void http_handle_post_incoming_actions(AsyncWebServerRequest *request) {
         target->targetAction = a.toInt();
         if (target->targetAction != PED_ACTION_LED_COLOR &&
             target->targetAction != PED_ACTION_SET_SLOT_STATE &&
-            target->targetAction != PED_ACTION_BANK) {
+            target->targetAction != PED_ACTION_BANK &&
+            target->targetAction != PED_ACTION_WLED) {
           target->targetAction = PED_ACTION_LED_COLOR;
+        }
+        if (target->targetAction == PED_ACTION_WLED) {
+          unsigned int red = 0, green = 0, blue = 0;
+          a = request->arg(String("act-wled-command-") + String(triggerIdx) + String("-") + String(actionIdx));
+          target->bank = constrain(a.toInt(), PED_WLED_POWER, PED_WLED_EFFECT);
+          a = request->arg(String("act-wled-value-") + String(triggerIdx) + String("-") + String(actionIdx));
+          target->led = constrain(a.toInt(), 0, 255);
+          a = request->arg(String("act-wled-speed-") + String(triggerIdx) + String("-") + String(actionIdx));
+          target->slot = constrain(a.toInt(), 0, 255);
+          a = request->arg(String("act-wled-intensity-") + String(triggerIdx) + String("-") + String(actionIdx));
+          target->state = constrain(a.toInt(), 0, 255);
+          a = request->arg(String("act-wled-color-") + String(triggerIdx) + String("-") + String(actionIdx));
+          sscanf(a.c_str(), "#%02x%02x%02x", &red, &green, &blue);
+          target->color = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+          wled_config_normalize(target->bank, target->led, target->slot, target->state, target->color);
+          continue;
         }
         a = request->arg(String("act-led-") + String(triggerIdx) + String("-") + String(actionIdx));
         target->led = constrain(a.toInt(), 1, LEDS);
@@ -6825,6 +7074,11 @@ void http_handle_post_interfaces(AsyncWebServerRequest *request) {
     a = request->arg(String("clock") + String(i+1));
     interfaces[i].midiClock = (a == checked) ? PED_ENABLE : PED_DISABLE;
   }
+
+  if (!IS_INTERFACE_ENABLED(interfaces[PED_WLED].midiOut)) {
+    wled_clear_queue();
+  }
+
   if (request->arg("action").equals("apply")) {
     alert = F("Changes applied. Changes will be lost on next reboot or on profile switch if not saved.");
   }
@@ -6851,6 +7105,26 @@ void http_handle_post_sequences(AsyncWebServerRequest *request) {
 
     a = request->arg(String("message") + String(i+1));
     sequences[s][i].midiMessage = constrain(a.toInt(), 0, 255);
+
+    if (sequences[s][i].midiMessage == PED_ACTION_WLED) {
+      a = request->arg(String("wledcommand") + String(i+1));
+      sequences[s][i].midiChannel = constrain(a.toInt(), PED_WLED_POWER, PED_WLED_EFFECT);
+      a = request->arg(String("code") + String(i+1));
+      sequences[s][i].midiCode = constrain(a.toInt(), 0, 255);
+      a = request->arg(String("value") + String(i+1));
+      sequences[s][i].midiValue = constrain(a.toInt(), 0, 255);
+      a = request->arg(String("wledintensity") + String(i+1));
+      sequences[s][i].led = constrain(a.toInt(), 0, 255);
+      red = green = blue = 0;
+      sscanf(request->arg(String("color") + String(i+1)).c_str(), "#%02x%02x%02x", &red, &green, &blue);
+      sequences[s][i].color = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+      wled_config_normalize(sequences[s][i].midiChannel,
+                            sequences[s][i].midiCode,
+                            sequences[s][i].midiValue,
+                            sequences[s][i].led,
+                            sequences[s][i].color);
+      continue;
+    }
 
     a = request->arg(String("channel") + String(i+1));
     sequences[s][i].midiChannel = constrain(a.toInt(), 0, 17);
@@ -6949,6 +7223,14 @@ void http_handle_post_options(AsyncWebServerRequest *request) {
   if (request->arg("httpUsername") != httpUsername || request->arg("httpPassword") != httpPassword) {
     httpUsername  = request->arg("httpUsername");
     httpPassword  = request->arg("httpPassword");
+    restartRequired = false;
+  }
+
+  String newWLEDAddress = request->arg("wledAddress");
+  newWLEDAddress.trim();
+  if (newWLEDAddress.length() > MAXWLEDADDRESS) newWLEDAddress.remove(MAXWLEDADDRESS);
+  if (newWLEDAddress != wledAddress) {
+    wledAddress = newWLEDAddress;
     restartRequired = false;
   }
 

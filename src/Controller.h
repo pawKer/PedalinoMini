@@ -730,6 +730,9 @@ void incoming_actions_run(byte midiType, byte channel, byte data1, byte data2)
             leds_refresh();
             break;
           }
+          case PED_ACTION_WLED:
+            wled_enqueue(target->bank, target->led, target->slot, target->state, target->color);
+            break;
           default:
             break;
         }
@@ -1255,17 +1258,26 @@ void midi_send(byte message, byte code, byte value, byte channel, bool on_off, b
       DPRINT("-------------------------------------------------------\n");
       for (byte s = 0; s < STEPS; s++) {
         if (sequences[channel][s].midiMessage == PED_EMPTY) continue;
-        if (sequences[channel][s].midiMessage != PED_ACTION_LED_COLOR) {
+        if (sequences[channel][s].midiMessage == PED_ACTION_WLED) {
+          wled_enqueue(sequences[channel][s].midiChannel,
+                       sequences[channel][s].midiCode,
+                       sequences[channel][s].midiValue,
+                       sequences[channel][s].led,
+                       sequences[channel][s].color);
+        }
+        else if (sequences[channel][s].midiMessage != PED_ACTION_LED_COLOR) {
           midi_send(sequences[channel][s].midiMessage, sequences[channel][s].midiCode, sequences[channel][s].midiValue, sequences[channel][s].midiChannel, on_off, 0, MIDI_RESOLUTION - 1, bank, pedal, button, led);
         }
-        byte l = (sequences[channel][s].led == 255 ? led : sequences[channel][s].led);
-        l = constrain(l, 0, LEDS);
-        fastleds[l] = sequences[channel][s].color;
-        fastleds[l].nscale8(ledsOnBrightness);
-        if (sequences[channel][s].led != LEDS) { DPRINT("LED COLOR.....Led %2d......RGB Color #%02x%02x%02x\n", l + 1, fastleds[l].red, fastleds[l].green, fastleds[l].blue); }
-        fastleds[l] = swap_rgb_order(fastleds[l], rgbOrder);
-        FastLED.show();
-        lastLedColor[currentBank][l] = fastleds[l];
+        if (sequences[channel][s].midiMessage != PED_ACTION_WLED) {
+          byte l = (sequences[channel][s].led == 255 ? led : sequences[channel][s].led);
+          l = constrain(l, 0, LEDS);
+          fastleds[l] = sequences[channel][s].color;
+          fastleds[l].nscale8(ledsOnBrightness);
+          if (sequences[channel][s].led != LEDS) { DPRINT("LED COLOR.....Led %2d......RGB Color #%02x%02x%02x\n", l + 1, fastleds[l].red, fastleds[l].green, fastleds[l].blue); }
+          fastleds[l] = swap_rgb_order(fastleds[l], rgbOrder);
+          FastLED.show();
+          lastLedColor[currentBank][l] = fastleds[l];
+        }
       }
       DPRINT("=======================================================\n");
       currentMIDIValue[bank][pedal][button] = channel;
@@ -1278,15 +1290,26 @@ void midi_send(byte message, byte code, byte value, byte channel, bool on_off, b
       channel = constrain(channel, 0, SEQUENCES - 1);
       byte step = constrain(code, 0, STEPS - 1);
       DPRINT("SEQUENCE.....Number %2d.....Step %2d\n", channel + 1, step + 1);
-      midi_send(sequences[channel][step].midiMessage, sequences[channel][step].midiCode, sequences[channel][step].midiValue, sequences[channel][step].midiChannel, on_off, 0, MIDI_RESOLUTION - 1, bank, pedal, button, led);
-      byte l = (sequences[channel][step].led == 255 ? led : sequences[channel][step].led);
-      l = constrain(l, 0, LEDS);
-      fastleds[l] = sequences[channel][step].color;
-      fastleds[l].nscale8(ledsOnBrightness);
-      if (sequences[channel][step].led != LEDS) { DPRINT("LED COLOR.....Led %2d......RGB Color #%02x%02x%02x\n", l + 1, fastleds[l].red, fastleds[l].green, fastleds[l].blue); }
-      fastleds[l] = swap_rgb_order(fastleds[l], rgbOrder);
-      FastLED.show();
-      lastLedColor[currentBank][l] = fastleds[l];
+      if (sequences[channel][step].midiMessage == PED_ACTION_WLED) {
+        wled_enqueue(sequences[channel][step].midiChannel,
+                     sequences[channel][step].midiCode,
+                     sequences[channel][step].midiValue,
+                     sequences[channel][step].led,
+                     sequences[channel][step].color);
+      }
+      else {
+        midi_send(sequences[channel][step].midiMessage, sequences[channel][step].midiCode, sequences[channel][step].midiValue, sequences[channel][step].midiChannel, on_off, 0, MIDI_RESOLUTION - 1, bank, pedal, button, led);
+      }
+      if (sequences[channel][step].midiMessage != PED_ACTION_WLED) {
+        byte l = (sequences[channel][step].led == 255 ? led : sequences[channel][step].led);
+        l = constrain(l, 0, LEDS);
+        fastleds[l] = sequences[channel][step].color;
+        fastleds[l].nscale8(ledsOnBrightness);
+        if (sequences[channel][step].led != LEDS) { DPRINT("LED COLOR.....Led %2d......RGB Color #%02x%02x%02x\n", l + 1, fastleds[l].red, fastleds[l].green, fastleds[l].blue); }
+        fastleds[l] = swap_rgb_order(fastleds[l], rgbOrder);
+        FastLED.show();
+        lastLedColor[currentBank][l] = fastleds[l];
+      }
       DPRINT("--------------------------------------------------\n");
       //currentMIDIValue[bank][pedal][button] = channel;
       //lastMIDIMessage[currentBank] = {(byte)(message == PED_SEQUENCE_STEP_BY_STEP_FWD ? PED_SEQUENCE_STEP_BY_STEP_FWD : PED_SEQUENCE_STEP_BY_STEP_REV), code, value, channel};
@@ -1609,6 +1632,16 @@ void fire_action(action* act, byte p, byte i, byte e)
                                      constrain(act->midiValue1, 0, 1) == 1);
               break;
 
+            case PED_ACTION_WLED:
+              wled_enqueue(act->midiChannel, act->midiCode, act->midiValue1, act->midiValue2, act->color0);
+              DPRINT("WLED.....Command %d.....Value %d.....Speed %d.....Intensity %d.....Color #%06x\n",
+                     act->midiChannel,
+                     act->midiCode,
+                     act->midiValue1,
+                     act->midiValue2,
+                     act->color0 & 0xFFFFFF);
+              break;
+
             case PED_ACTION_SCAN:
               scannerActivated = !scannerActivated;
               leds_refresh();
@@ -1647,6 +1680,7 @@ void fire_action(action* act, byte p, byte i, byte e)
           switch (act->midiMessage) {
             case PED_ACTION_LED_COLOR:
             case PED_ACTION_SET_SLOT_STATE:
+            case PED_ACTION_WLED:
             case PED_ACTION_BANK_PLUS:
             case PED_ACTION_BANK_MINUS:
             case PED_ACTION_PROFILE_PLUS:

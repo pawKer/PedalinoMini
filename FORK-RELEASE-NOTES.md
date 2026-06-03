@@ -16,6 +16,9 @@
 11. `TBD` - Config surface consistency checks
 12. `TBD` - Native unit test scaffold
 13. `TBD` - Expanded native and Web/config contract tests
+14. `TBD` - WLED HTTP action
+15. `TBD` - WLED interface kill switch and disabled default
+16. `TBD` - Incoming MIDI Web page chunking fix
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -98,9 +101,33 @@
 - Compatibility note: intended firmware behavior and config format are unchanged; production paths now delegate more small decisions to dependency-free helpers so they can be regression-tested on the native host target.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
 
+### `TBD` - WLED HTTP action
+- Added first-class `WLED` actions for normal actions, sequence steps, and incoming MIDI target actions.
+- Added global `WLEDAddress` configuration in Options, exported JSON, schema, and NVS/SPIFFS globals. The value is a host/IP with optional port; firmware sends to `http://<WLEDAddress>/json/state`.
+- Added queued best-effort WLED HTTP delivery from the low-priority Wi-Fi loop, with a small fixed queue, 500 ms HTTP timeout, no retry/persistent queue, and debug drops when the address is empty or invalid.
+- Added readable exported/imported `WLED` objects with `Command`, `Value`, `Speed`, `Intensity`, and `Color` fields while keeping runtime storage mapped into existing compact byte/color fields.
+- Supported WLED commands: `Power`, `Preset`, `Brightness`, `Solid Color`, and `Effect`.
+- Compatibility note: existing non-WLED action, sequence, and incoming-trigger serialization remains unchanged. WLED actions require Wi-Fi and one configured global WLED target; analog/jog continuous WLED output is intentionally not supported in this first pass.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "$PWD\.tmp"; pio test -e native`, and `$env:TMPDIR = "$PWD\.tmp"; pio run -e lilygo-t-display-s3`.
+
+### `TBD` - WLED interface kill switch and disabled default
+- Added a seventh `WLED` row to the Interfaces tab with a single `Enabled` switch backed by the interface `Out` state.
+- WLED actions now check the WLED interface state before enqueueing or sending HTTP requests, so disabling WLED blocks normal action, sequence, and incoming-trigger WLED output paths.
+- Clearing the WLED interface also clears any pending WLED HTTP queue entries, preventing stale WLED requests from firing later after the interface is re-enabled.
+- Older six-interface profile/config data remains compatible: missing WLED interface entries default to disabled, while explicit seven-interface configs preserve their saved WLED state.
+- Tightened the OSC `/interface` index clamp to stay within the expanded interfaces array.
+- Compatibility note: WLED output is disabled by default. Use Interfaces -> WLED -> Enabled to allow WLED action side effects when the integration is in use.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `pio test -e native`, and `pio run -e lilygo-t-display-s3`.
+
+### `TBD` - Incoming MIDI Web page chunking fix
+- Added extra chunk-trim checkpoints inside the Incoming MIDI Actions editor after trigger headers, LED action fields, and WLED action fields.
+- This keeps the generated `/incoming-actions` HTML chunks below the reserved 8192-byte page buffer more consistently and avoids the serial `Memory fragmentation warning: webpage memory allocation ... greater then 8192 bytes reserved` message seen when editing WLED incoming actions.
+- Compatibility note: no config format or runtime MIDI behavior changed; this only changes web-page chunk generation.
+- Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
+
 
 ## Validation
-- Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-02, expanded native and Web/config contract tests worktree).
-- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (21 Unity tests passed, 2026-06-02).
-- Latest local Python validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (14 tests passed, 2026-06-02).
+- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-03, Incoming MIDI Web page chunking fix).
+- Latest native test run: `pio test -e native` (24 Unity tests passed, 2026-06-03).
+- Latest local Python validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (20 tests passed, 2026-06-03) and `python scripts/validate_config_surfaces.py` (success, 2026-06-03).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.
