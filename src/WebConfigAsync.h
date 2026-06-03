@@ -3674,6 +3674,25 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F(" Hardware Test");
   page += F("</h5>");
   page += F("</div>");
+  page += F("<div class='col-12 col-md-auto'>");
+  page += F("<div class='input-group input-group-sm'>");
+  page += F("<span class='input-group-text'>Bank</span>");
+  page += F("<select id='hardwareBankSelect' class='form-select'>");
+  for (byte i = 1; i < BANKS; i++) {
+    page += F("<option value='");
+    page += i;
+    page += F("'");
+    if (currentBank == i) page += F(" selected");
+    page += F(">");
+    if (String(banknames[i]).isEmpty())
+      page += i;
+    else
+      page += banknames[i];
+    page += F("</option>");
+  }
+  page += F("</select>");
+  page += F("</div>");
+  page += F("</div>");
   page += F("<div class='col-auto'><span id='hardwareStatus' class='badge bg-secondary'>Disconnected</span></div>");
   page += F("</div>");
   page += F("</div>");
@@ -3726,11 +3745,14 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("let hardwareSocket=null;const hardwareActive={};");
   page += F("function hardwareSetStatus(t,c){const s=document.getElementById('hardwareStatus');if(!s)return;s.textContent=t;s.className='badge '+c;}");
   page += F("function hardwareSend(command){if(hardwareSocket&&hardwareSocket.readyState===WebSocket.OPEN){hardwareSocket.send(command);}}");
+  page += F("function hardwareSendBinary(str){if(!hardwareSocket||hardwareSocket.readyState!==WebSocket.OPEN)return;const buffer=new ArrayBuffer(str.length+1);const view=new DataView(buffer);for(let i=0;i<str.length;i++)view.setUint8(i,str.charCodeAt(i));view.setUint8(str.length,0);hardwareSocket.send(view);}");
   page += F("function hardwarePress(id){if(hardwareActive[id])return;hardwareActive[id]=true;hardwareSend('control-press:'+id);}");
   page += F("function hardwareRelease(id){if(!hardwareActive[id])return;hardwareActive[id]=false;hardwareSend('control-release:'+id);}");
   page += F("function hardwareReleaseAll(){Object.keys(hardwareActive).forEach(function(id){hardwareRelease(id);});}");
+  page += F("function hardwareSetBank(bank){hardwareReleaseAll();hardwareSendBinary('bank'+bank);}");
   page += F("function hardwareApplyState(state){");
   page += F("const bank=document.getElementById('hardwareBank');if(bank)bank.textContent=state.bankName||('Bank '+state.bank);");
+  page += F("const select=document.getElementById('hardwareBankSelect');if(select&&state.bank!==undefined)select.value=String(state.bank);");
   page += F("(state.buttons||[]).forEach(function(b){const btn=document.querySelector('.hardwareButton[data-control=\"'+b.id+'\"]');if(!btn)return;btn.disabled=!b.enabled;btn.title=b.reason||'';const span=btn.querySelector('span');if(span)span.textContent=b.label||('Control '+b.id);});");
   page += F("(state.slots||[]).forEach(function(s){const slot=document.getElementById('hardwareSlot'+s.id);if(!slot)return;slot.textContent=s.label||('S'+s.id);slot.style.borderColor=s.active?'#0d6efd':'#666';slot.style.background=s.active?'#0d6efd':'#111';});");
   page += F("}");
@@ -3742,6 +3764,7 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("}");
   page += F("document.addEventListener('DOMContentLoaded',function(){");
   page += F("window.addEventListener('pagehide',hardwareReleaseAll);window.addEventListener('beforeunload',hardwareReleaseAll);");
+  page += F("const bankSelect=document.getElementById('hardwareBankSelect');if(bankSelect)bankSelect.addEventListener('change',function(){hardwareSetBank(this.value);});");
   page += F("document.querySelectorAll('.hardwareButton').forEach(function(btn){const id=btn.dataset.control;btn.addEventListener('pointerdown',function(e){e.preventDefault();hardwarePress(id);});btn.addEventListener('pointerup',function(e){e.preventDefault();hardwareRelease(id);});btn.addEventListener('pointercancel',function(){hardwareRelease(id);});btn.addEventListener('pointerleave',function(){hardwareRelease(id);});});");
   page += F("if(!!window.EventSource){const source=new EventSource('/events');source.addEventListener('open',function(){hardwareSend('hardware-state');},false);source.addEventListener('hardware',function(event){hardwareApplyState(JSON.parse(event.data));},false);}hardwareConnect();");
   page += F("});");

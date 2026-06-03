@@ -176,6 +176,12 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertIsNotNone(connect_block)
         self.assertNotIn("hardware_send_state_to_client(client);", connect_block.group("body"))
 
+    def test_hardware_page_bank_selector_uses_existing_live_bank_command(self) -> None:
+        self.assertIn("hardwareBankSelect", self.web_config)
+        self.assertIn("hardwareSetBank", self.web_config)
+        self.assertIn("hardwareSendBinary('bank'+bank)", self.web_config)
+        self.assertIn("select.value=String(state.bank)", self.web_config)
+
     def test_hardware_websocket_control_path_is_queued_and_bounded(self) -> None:
         self.assertIn("controller_queue_virtual_control_event", self.web_config)
         self.assertIn("hardware_release_active_virtual_controls", self.web_config)
