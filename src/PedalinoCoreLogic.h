@@ -264,6 +264,11 @@ inline HardwareControlMapping hardware_control_mapping_for(int pedal1,
   return {true, static_cast<unsigned char>(pedal1), static_cast<unsigned char>(button1), ""};
 }
 
+inline bool hardware_press_mode_is_virtual_pressable(int pressMode, int singlePressFlag)
+{
+  return (pressMode & singlePressFlag) == singlePressFlag;
+}
+
 inline const char* hardware_display_label(const char* tagOff,
                                           const char* tagOn,
                                           bool active,

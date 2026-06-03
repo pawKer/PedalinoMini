@@ -141,6 +141,12 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertIn("http_handle_hardware", self.web_config)
         self.assertIn("get_hardware_page_chunked", self.web_config)
         self.assertIn("hardware_send_state", self.web_config)
+        self.assertIn("webSocket.setAuthentication", self.web_config)
+        self.assertIn("events.setAuthentication", self.web_config)
+        self.assertIn("hardware_live_transport_available", self.web_config)
+        self.assertIn("Set an HTTP password to use the hardware test page.", self.web_config)
+        self.assertIn("eeprom_update_login_credentials(httpUsername, httpPassword)", self.web_config)
+        self.assertIn("restartRequired = true", self.web_config)
 
     def test_hardware_page_contains_virtual_button_contract(self) -> None:
         self.assertIn("control-press:", self.web_config)
@@ -148,6 +154,17 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertIn("addEventListener('hardware'", self.web_config)
         self.assertIn("hardwareButton", self.web_config)
         self.assertIn("hardwareSlot", self.web_config)
+        self.assertIn("pagehide", self.web_config)
+        self.assertIn("beforeunload", self.web_config)
+
+    def test_hardware_websocket_control_path_is_queued_and_bounded(self) -> None:
+        self.assertIn("controller_queue_virtual_control_event", self.web_config)
+        self.assertIn("hardware_release_active_virtual_controls", self.web_config)
+        self.assertIn("hardwareVirtualControlClient", self.web_config)
+        self.assertIn("client->id()", self.web_config)
+        self.assertIn("ws_copy_message", self.web_config)
+        self.assertNotIn("data[len] = 0", self.web_config)
+        self.assertNotIn("controller_virtual_control_event(controlNumber", self.web_config)
 
 
 class ConfigFixtureContractTest(unittest.TestCase):

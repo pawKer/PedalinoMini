@@ -42,6 +42,7 @@ AsyncWebSocket               webSocket("/ws");
 AsyncEventSource             events("/events");    // EventSource is single direction, text-only protocol.
 AsyncWebSocketMessageBuffer *buffer = NULL;
 AsyncWebSocketClient        *wsClient = NULL;
+uint32_t                     hardwareVirtualControlClient[6] = {0, 0, 0, 0, 0, 0};
 #endif
 
 #define WEBPAGE_MEMORY_ALLOCATION 8192    // To avoid memory fragmentation keep web page chunk smaller than allocated space
@@ -203,12 +204,23 @@ bool hardware_action_value(action* act, int& value)
   return true;
 }
 
-String hardware_action_label(action* act, bool active, const String& fallback)
+String hardware_action_label(action* act, bool active, const String& fallback, bool displaySlotMode = false)
 {
   if (act == nullptr) return fallback;
 
   String label = "";
-  if (act->tag0[0] != 0 && act->tag1[0] != 0) {
+  if (displaySlotMode && !(act->tag0[0] != 0 && act->tag1[0] != 0)) {
+    if (act->tag0[0] != 0) {
+      label = act->tag0;
+    }
+    else if (act->name[0] != 0) {
+      label = act->name;
+    }
+    else {
+      label = fallback;
+    }
+  }
+  else if (act->tag0[0] != 0 && act->tag1[0] != 0) {
     label = pedalino::hardware_display_label(act->tag0, act->tag1, active, fallback.c_str());
   }
   else if (act->tag0[0] != 0) {
@@ -263,7 +275,7 @@ String hardware_state_json()
     json += F("{\"id\":");
     json += (s + 1);
     json += F(",\"label\":");
-    hardware_append_json_string(json, hardware_action_label(hardware_best_action_for_slot(s), active, fallback));
+    hardware_append_json_string(json, hardware_action_label(hardware_best_action_for_slot(s), active, fallback, true));
     json += F(",\"active\":");
     json += active ? F("true") : F("false");
     json += "}";
@@ -282,6 +294,43 @@ void hardware_send_state(bool force = false)
     events.send(json.c_str(), "hardware");
     if (!force) hardwareLastStateJson = json;
   }
+}
+
+bool hardware_live_transport_available()
+{
+  return httpUsername.isEmpty() || !httpPassword.isEmpty();
+}
+
+void hardware_release_active_virtual_controls(AsyncWebSocketClient* client)
+{
+  if (client == nullptr) return;
+
+  String reason;
+  bool releaseQueued = false;
+  const uint32_t clientId = client->id();
+
+  for (byte i = 0; i < 6; i++) {
+    if (hardwareVirtualControlClient[i] != clientId) continue;
+
+    if (controller_queue_virtual_control_event(i, AceButton::kEventReleased, &reason)) {
+      hardwareVirtualControlClient[i] = 0;
+      releaseQueued = true;
+    }
+    else if (!reason.isEmpty()) {
+      DPRINT("Virtual control disconnect release skipped: %s\n", reason.c_str());
+    }
+  }
+
+  if (releaseQueued) hardware_send_state(true);
+}
+
+void ws_copy_message(char* destination, size_t destinationSize, const uint8_t* data, size_t len)
+{
+  if (destinationSize == 0) return;
+
+  const size_t copyLen = len < destinationSize - 1 ? len : destinationSize - 1;
+  memcpy(destination, data, copyLen);
+  destination[copyLen] = 0;
 }
 #endif
 
@@ -382,6 +431,7 @@ bool get_top_page(int p, unsigned int start, unsigned int len) {
 
   if (trim_page(start, len)) return true;
 
+#ifdef WEBSOCKET
   page += F("<li class='nav-item");
   page += (p == 11 ? F(" active'>") : F("'>"));
   page += F("<a class='nav-link' href='/hardware'>");
@@ -392,6 +442,7 @@ bool get_top_page(int p, unsigned int start, unsigned int len) {
   page += F("</li>");
 
   if (trim_page(start, len)) return true;
+#endif
 
   page += F("<li class='nav-item");
   page += (p == 10 ? F(" active'>") : F("'>"));
@@ -3600,6 +3651,7 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("function hardwareSend(command){if(hardwareSocket&&hardwareSocket.readyState===WebSocket.OPEN){hardwareSocket.send(command);}}");
   page += F("function hardwarePress(id){if(hardwareActive[id])return;hardwareActive[id]=true;hardwareSend('control-press:'+id);}");
   page += F("function hardwareRelease(id){if(!hardwareActive[id])return;hardwareActive[id]=false;hardwareSend('control-release:'+id);}");
+  page += F("function hardwareReleaseAll(){Object.keys(hardwareActive).forEach(function(id){hardwareRelease(id);});}");
   page += F("function hardwareApplyState(state){");
   page += F("const bank=document.getElementById('hardwareBank');if(bank)bank.textContent=state.bankName||('Bank '+state.bank);");
   page += F("(state.buttons||[]).forEach(function(b){const btn=document.querySelector('.hardwareButton[data-control=\"'+b.id+'\"]');if(!btn)return;btn.disabled=!b.enabled;btn.title=b.reason||'';const span=btn.querySelector('span');if(span)span.textContent=b.label||('Control '+b.id);});");
@@ -3611,6 +3663,7 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("hardwareSocket.onclose=function(){hardwareSetStatus('Disconnected','bg-secondary');setTimeout(hardwareConnect,1500);};");
   page += F("}");
   page += F("document.addEventListener('DOMContentLoaded',function(){");
+  page += F("window.addEventListener('pagehide',hardwareReleaseAll);window.addEventListener('beforeunload',hardwareReleaseAll);");
   page += F("document.querySelectorAll('.hardwareButton').forEach(function(btn){const id=btn.dataset.control;btn.addEventListener('pointerdown',function(e){e.preventDefault();hardwarePress(id);});btn.addEventListener('pointerup',function(e){e.preventDefault();hardwareRelease(id);});btn.addEventListener('pointercancel',function(){hardwareRelease(id);});btn.addEventListener('pointerleave',function(){hardwareRelease(id);});});");
   page += F("if(!!window.EventSource){const source=new EventSource('/events');source.addEventListener('open',function(){hardwareSend('hardware-state');},false);source.addEventListener('hardware',function(event){hardwareApplyState(JSON.parse(event.data));},false);}hardwareConnect();");
   page += F("});");
@@ -6482,6 +6535,12 @@ void http_handle_display(AsyncWebServerRequest *request) {
 
 void http_handle_hardware(AsyncWebServerRequest *request) {
   if (!httpUsername.isEmpty() && !request->authenticate(httpUsername.c_str(), httpPassword.c_str())) return request->requestAuthentication();
+#ifdef WEBSOCKET
+  if (!hardware_live_transport_available()) {
+    request->send(403, "text/plain", "Set an HTTP password to use the hardware test page.");
+    return;
+  }
+#endif
   http_handle_globals(request);
   AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", get_hardware_page_chunked);
   response->addHeader("Connection", "close");
@@ -7250,7 +7309,8 @@ void http_handle_post_options(AsyncWebServerRequest *request) {
   if (request->arg("httpUsername") != httpUsername || request->arg("httpPassword") != httpPassword) {
     httpUsername  = request->arg("httpUsername");
     httpPassword  = request->arg("httpPassword");
-    restartRequired = false;
+    eeprom_update_login_credentials(httpUsername, httpPassword);
+    restartRequired = true;
   }
 
   if (request->arg("debounceinterval").toInt() != debounceInterval) {
@@ -7701,10 +7761,12 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
     //client disconnected
     DPRINT("ws[%s][%u] disconnect\n", server->url(), client->id());
     //connected = false;
-    wsClient = NULL;
+    if (client == wsClient) wsClient = NULL;
+    hardware_release_active_virtual_controls(client);
   } else if(type == WS_EVT_ERROR){
     //error was received from the other end
     DPRINT("ws[%s][%u] error(%u): %s\n", server->url(), client->id(), *((uint16_t*)arg), (char*)data);
+    hardware_release_active_virtual_controls(client);
   } else if(type == WS_EVT_PONG){
     //pong message was received (in response to a ping request maybe)
     DPRINT("ws[%s][%u] pong[%u]: %s\n", server->url(), client->id(), len, (len)?(char*)data:"");
@@ -7715,99 +7777,117 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
       //the whole message is in a single frame and we got all of it's data
       DPRINT("ws[%s][%u] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
       if(info->opcode == WS_TEXT){
-        data[len] = 0;
-        DPRINT("%s\n", (char*)data);
+        char message[64];
+        ws_copy_message(message, sizeof(message), data, len);
+        DPRINT("%s\n", message);
         int controlNumber = 0;
         String reason;
-        if (sscanf((const char *)data, "control-press:%d", &controlNumber) == 1) {
+        if (sscanf(message, "control-press:%d", &controlNumber) == 1) {
           if (controlNumber >= 1 && controlNumber <= 6) {
-            controller_virtual_control_event(controlNumber - 1, AceButton::kEventPressed, &reason);
+            const byte controlIndex = controlNumber - 1;
+            if (hardwareVirtualControlClient[controlIndex] == 0) {
+              if (controller_queue_virtual_control_event(controlIndex, AceButton::kEventPressed, &reason)) {
+                hardwareVirtualControlClient[controlIndex] = client->id();
+              }
+            }
+            else if (hardwareVirtualControlClient[controlIndex] != client->id()) {
+              reason = "Virtual control already active";
+            }
             if (!reason.isEmpty()) DPRINT("Virtual control press skipped: %s\n", reason.c_str());
           }
           hardware_send_state(true);
         }
-        else if (sscanf((const char *)data, "control-release:%d", &controlNumber) == 1) {
+        else if (sscanf(message, "control-release:%d", &controlNumber) == 1) {
           if (controlNumber >= 1 && controlNumber <= 6) {
-            controller_virtual_control_event(controlNumber - 1, AceButton::kEventReleased, &reason);
+            const byte controlIndex = controlNumber - 1;
+            if (hardwareVirtualControlClient[controlIndex] == client->id()) {
+              if (controller_queue_virtual_control_event(controlIndex, AceButton::kEventReleased, &reason)) {
+                hardwareVirtualControlClient[controlIndex] = 0;
+              }
+            }
+            else if (hardwareVirtualControlClient[controlIndex] != 0) {
+              reason = "Virtual control owned by another client";
+            }
             if (!reason.isEmpty()) DPRINT("Virtual control release skipped: %s\n", reason.c_str());
           }
           hardware_send_state(true);
         }
-        else if (strcmp((const char *)data, "hardware-state") == 0) {
+        else if (strcmp(message, "hardware-state") == 0) {
           hardware_send_state(true);
         }
       } else {
         for (size_t i = 0; i < info->len; i++) {
           DPRINT("%02x ", data[i]);
         }
-        data[info->len-1] = 0;
-        DPRINT(" %s\n", (char*)data);
+        char message[64];
+        ws_copy_message(message, sizeof(message), data, len);
+        DPRINT(" %s\n", message);
         //DPRINT("%d\n", ESP.getFreeHeap());
-        if (strcmp((const char *)data, ".") == 0) {
+        if (strcmp(message, ".") == 0) {
           //AsyncWebSocketMessageBuffer *buffer = webSocket.makeBuffer(128*64);
           //memcpy(buffer->get(), display.buffer, 128*64);
           //if (connected && buffer) {client->binary(buffer); delete buffer; buffer = NULL;}
           //client->binary(display.buffer, 128*64);
         }
-        else if (strcmp((const char *)data, "start") == 0)
+        else if (strcmp(message, "start") == 0)
           mtc_start();
-        else if (strcmp((const char *)data, "stop") == 0)
+        else if (strcmp(message, "stop") == 0)
           mtc_stop();
-        else if (strcmp((const char *)data, "continue") == 0)
+        else if (strcmp(message, "continue") == 0)
           mtc_continue();
-        else if (strcmp((const char *)data, "tap") == 0)
+        else if (strcmp(message, "tap") == 0)
           mtc_tap();
-        else if (strcmp((const char *)data, "clock-master") == 0) {
+        else if (strcmp(message, "clock-master") == 0) {
           MTC.setMode(MidiTimeCode::SynchroClockMaster);
           bpm = (bpm == 0) ? 120 : bpm;
           MTC.setBpm(bpm);
           currentMidiTimeCode = PED_MIDI_CLOCK_MASTER;
         }
-        else if (strcmp((const char *)data, "clock-slave") == 0) {
+        else if (strcmp(message, "clock-slave") == 0) {
           MTC.setMode(MidiTimeCode::SynchroClockSlave);
           currentMidiTimeCode = PED_MIDI_CLOCK_SLAVE;
           bpm = 0;
         }
-        else if (strcmp((const char *)data, "mtc-master") == 0) {
+        else if (strcmp(message, "mtc-master") == 0) {
           MTC.setMode(MidiTimeCode::SynchroMTCMaster);
           MTC.sendPosition(0, 0, 0, 0);
           currentMidiTimeCode = PED_MTC_MASTER_24;
         }
-        else if (strcmp((const char *)data, "mtc-slave") == 0) {
+        else if (strcmp(message, "mtc-slave") == 0) {
           MTC.setMode(MidiTimeCode::SynchroMTCSlave);
           currentMidiTimeCode = PED_MTC_SLAVE;
         }
-        else if (strcmp((const char *)data, "4/4") == 0) {
+        else if (strcmp(message, "4/4") == 0) {
           timeSignature = PED_TIMESIGNATURE_4_4;
           MTC.setBeat(4);
         }
-        else if (strcmp((const char *)data, "3/4") == 0) {
+        else if (strcmp(message, "3/4") == 0) {
           timeSignature = PED_TIMESIGNATURE_3_4;
           MTC.setBeat(3);
         }
-        else if (strcmp((const char *)data, "2/4") == 0) {
+        else if (strcmp(message, "2/4") == 0) {
           timeSignature = PED_TIMESIGNATURE_2_4;
           MTC.setBeat(2);
         }
-        else if (strcmp((const char *)data, "3/8") == 0) {
+        else if (strcmp(message, "3/8") == 0) {
           timeSignature = PED_TIMESIGNATURE_3_8;
           MTC.setBeat(3);
         }
-        else if (strcmp((const char *)data, "6/8") == 0) {
+        else if (strcmp(message, "6/8") == 0) {
           timeSignature = PED_TIMESIGNATURE_6_8;
           MTC.setBeat(3);
         }
-        else if (strcmp((const char *)data, "9/8") == 0) {
+        else if (strcmp(message, "9/8") == 0) {
           timeSignature = PED_TIMESIGNATURE_9_8;
           MTC.setBeat(3);
         }
-        else if (strcmp((const char *)data, "12/8") == 0) {
+        else if (strcmp(message, "12/8") == 0) {
           timeSignature = PED_TIMESIGNATURE_12_8;
           MTC.setBeat(3);
         }
         else {
           int b;
-          if (sscanf((const char *)data, "bank%d", &b) == 1) {
+          if (sscanf(message, "bank%d", &b) == 1) {
             currentBank = constrain(b, 0, BANKS - 1);
             reset_slot_display_state(currentBank);
             update_current_step();
@@ -7832,8 +7912,9 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
 
       DPRINT("ws[%s][%u] frame[%u] %s[%llu - %llu]: ", server->url(), client->id(), info->num, (info->message_opcode == WS_TEXT)?"text":"binary", info->index, info->index + len);
       if(info->message_opcode == WS_TEXT){
-        data[len] = 0;
-        DPRINT("%s\n", (char*)data);
+        char message[64];
+        ws_copy_message(message, sizeof(message), data, len);
+        DPRINT("%s\n", message);
       } else {
         for(size_t i=0; i < len; i++){
           DPRINT("%02x ", data[i]);
@@ -7863,10 +7944,15 @@ void http_setup() {
 
 #ifdef WEBCONFIG
 #ifdef WEBSOCKET
-  webSocket.onEvent(onWsEvent);
-  httpServer.addHandler(&webSocket);
-  //events.setAuthentication("user", "pass");
-  httpServer.addHandler(&events);
+  if (hardware_live_transport_available()) {
+    webSocket.onEvent(onWsEvent);
+    if (!httpUsername.isEmpty()) {
+      webSocket.setAuthentication(httpUsername.c_str(), httpPassword.c_str());
+      events.setAuthentication(httpUsername.c_str(), httpPassword.c_str());
+    }
+    httpServer.addHandler(&webSocket);
+    httpServer.addHandler(&events);
+  }
 #endif
 /*
   httpServer.serveStatic("/favicon.ico",                SPIFFS, "/favicon.ico").setDefaultFile("/favicon.ico").setCacheControl("max-age=600");

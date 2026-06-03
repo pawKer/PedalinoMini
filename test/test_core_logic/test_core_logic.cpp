@@ -46,6 +46,9 @@ const int kPedMomentary3 = 7;
 const int kPedLadder = 9;
 const int kPedAnalog = 10;
 const int kPedAnalogMomentary = 11;
+const int kPressSingle = 1;
+const int kPressDouble = 2;
+const int kPressLong = 4;
 
 struct TestAction {
   int targetAction;
@@ -464,6 +467,14 @@ void test_hardware_control_mapping_rejects_non_momentary_mode()
   TEST_ASSERT_EQUAL_STRING("Unsupported pedal mode", mapping.reason);
 }
 
+void test_hardware_press_mode_requires_single_press_events()
+{
+  TEST_ASSERT_TRUE(pedalino::hardware_press_mode_is_virtual_pressable(kPressSingle, kPressSingle));
+  TEST_ASSERT_TRUE(pedalino::hardware_press_mode_is_virtual_pressable(kPressSingle | kPressLong, kPressSingle));
+  TEST_ASSERT_FALSE(pedalino::hardware_press_mode_is_virtual_pressable(0, kPressSingle));
+  TEST_ASSERT_FALSE(pedalino::hardware_press_mode_is_virtual_pressable(kPressDouble | kPressLong, kPressSingle));
+}
+
 void test_hardware_display_label_prefers_active_tag_then_fallback()
 {
   TEST_ASSERT_EQUAL_STRING("PLAY", pedalino::hardware_display_label("STOP", "PLAY", true, "Control 1"));
@@ -506,6 +517,7 @@ int main(int argc, char** argv)
   RUN_TEST(test_hardware_control_mapping_rejects_unmapped_or_out_of_range_control);
   RUN_TEST(test_hardware_control_mapping_rejects_simultaneous_control);
   RUN_TEST(test_hardware_control_mapping_rejects_non_momentary_mode);
+  RUN_TEST(test_hardware_press_mode_requires_single_press_events);
   RUN_TEST(test_hardware_display_label_prefers_active_tag_then_fallback);
   return UNITY_END();
 }

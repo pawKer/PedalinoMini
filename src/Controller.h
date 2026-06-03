@@ -12,6 +12,9 @@ __________           .___      .__  .__                 _____  .__       .__    
 #include <algorithm>
 #include <list>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+
 #include "PedalinoCoreLogic.h"
 
 struct event {
@@ -24,6 +27,13 @@ struct event {
 };
 
 std::list<event>   backlog;
+
+struct virtualControlEvent {
+  byte    control;
+  uint8_t event;
+};
+
+QueueHandle_t virtualControlQueue = NULL;
 
 void refresh_analog(byte, bool);
 
@@ -1884,20 +1894,32 @@ inline pedalino::HardwareControlMapping controller_virtual_control_mapping(byte 
   const byte pedal = controls[controlIndex].pedal1;
   const int pedalMode = pedal < PEDALS ? pedals[pedal].mode : PED_NONE;
 
-  return pedalino::hardware_control_mapping_for(controls[controlIndex].pedal1,
-                                                controls[controlIndex].button1,
-                                                controls[controlIndex].pedal2,
-                                                controls[controlIndex].button2,
-                                                pedalMode,
-                                                PEDALS,
-                                                LADDER_STEPS,
-                                                PEDALS,
-                                                LADDER_STEPS,
-                                                PED_MOMENTARY1,
-                                                PED_MOMENTARY2,
-                                                PED_MOMENTARY3,
-                                                PED_LADDER,
-                                                PED_ANALOG_MOMENTARY);
+  pedalino::HardwareControlMapping mapping =
+      pedalino::hardware_control_mapping_for(controls[controlIndex].pedal1,
+                                             controls[controlIndex].button1,
+                                             controls[controlIndex].pedal2,
+                                             controls[controlIndex].button2,
+                                             pedalMode,
+                                             PEDALS,
+                                             LADDER_STEPS,
+                                             PEDALS,
+                                             LADDER_STEPS,
+                                             PED_MOMENTARY1,
+                                             PED_MOMENTARY2,
+                                             PED_MOMENTARY3,
+                                             PED_LADDER,
+                                             PED_ANALOG_MOMENTARY);
+
+  if (mapping.supported &&
+      !pedalino::hardware_press_mode_is_virtual_pressable(pedals[mapping.pedal].pressMode, PED_PRESS_1)) {
+    return {false, 0, 0, "Single press disabled"};
+  }
+
+  if (mapping.supported && pedals[mapping.pedal].button[mapping.button] == nullptr) {
+    return {false, 0, 0, "Pedal button unavailable"};
+  }
+
+  return mapping;
 }
 
 inline bool controller_virtual_control_event(byte controlIndex, uint8_t eventType, String* reason = nullptr)
@@ -1917,6 +1939,53 @@ inline bool controller_virtual_control_event(byte controlIndex, uint8_t eventTyp
   controller_event_handler_button(button, eventType, eventType == AceButton::kEventPressed ? HIGH : LOW);
   if (reason != nullptr) *reason = "";
   return true;
+}
+
+inline void controller_virtual_control_queue_setup()
+{
+  if (virtualControlQueue == NULL) {
+    virtualControlQueue = xQueueCreate(24, sizeof(virtualControlEvent));
+  }
+}
+
+inline bool controller_queue_virtual_control_event(byte controlIndex, uint8_t eventType, String* reason = nullptr)
+{
+  if (eventType != AceButton::kEventPressed && eventType != AceButton::kEventReleased) {
+    if (reason != nullptr) *reason = "Unsupported virtual event";
+    return false;
+  }
+
+  const pedalino::HardwareControlMapping mapping = controller_virtual_control_mapping(controlIndex);
+  if (!mapping.supported) {
+    if (reason != nullptr) *reason = mapping.reason;
+    return false;
+  }
+
+  controller_virtual_control_queue_setup();
+  if (virtualControlQueue == NULL) {
+    if (reason != nullptr) *reason = "Virtual queue unavailable";
+    return false;
+  }
+
+  virtualControlEvent queued = {controlIndex, eventType};
+  if (xQueueSend(virtualControlQueue, &queued, 0) != pdTRUE) {
+    if (reason != nullptr) *reason = "Virtual queue full";
+    return false;
+  }
+
+  if (reason != nullptr) *reason = "";
+  return true;
+}
+
+inline void controller_drain_virtual_control_events()
+{
+  controller_virtual_control_queue_setup();
+  if (virtualControlQueue == NULL) return;
+
+  virtualControlEvent queued;
+  while (xQueueReceive(virtualControlQueue, &queued, 0) == pdTRUE) {
+    controller_virtual_control_event(queued.control, queued.event);
+  }
 }
 
 //
@@ -2301,6 +2370,8 @@ void controller_run(bool send = true)
     return;
   }
 
+  controller_drain_virtual_control_events();
+
   for (byte i = 0; i < PEDALS; i++) {
     switch (pedals[i].mode) {
 
@@ -2513,6 +2584,8 @@ void set_or_clear(ButtonConfig *config, ButtonConfig::FeatureFlagType f, bool fl
 //
 void controller_setup()
 {
+  controller_virtual_control_queue_setup();
+
   lastUsedSwitch = 0xFF;
   lastUsedPedal  = 0xFF;
   lastUsed       = 0xFF;
