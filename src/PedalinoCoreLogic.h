@@ -258,6 +258,25 @@ inline RgbColor swap_rgb_order(RgbColor color,
   return {0, 0, 0};
 }
 
+inline RgbColor unswap_rgb_order(RgbColor color,
+                                 int order,
+                                 int rgbOrder,
+                                 int rbgOrder,
+                                 int grbOrder,
+                                 int gbrOrder,
+                                 int brgOrder,
+                                 int bgrOrder)
+{
+  if (order == rgbOrder) return color;
+  if (order == rbgOrder) return {color.red, color.blue, color.green};
+  if (order == grbOrder) return {color.green, color.red, color.blue};
+  if (order == gbrOrder) return {color.blue, color.red, color.green};
+  if (order == brgOrder) return {color.green, color.blue, color.red};
+  if (order == bgrOrder) return {color.blue, color.green, color.red};
+
+  return {0, 0, 0};
+}
+
 inline TrimPageDecision trim_page_decision(unsigned int skipped,
                                            unsigned int saved,
                                            unsigned int start,

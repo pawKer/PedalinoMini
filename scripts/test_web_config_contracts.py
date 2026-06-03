@@ -182,6 +182,17 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertIn("hardwareSendBinary('bank'+bank)", self.web_config)
         self.assertIn("select.value=String(state.bank)", self.web_config)
 
+    def test_hardware_page_exposes_led_and_slot_visual_state(self) -> None:
+        self.assertIn("hardware_led_css_color", self.web_config)
+        self.assertIn('F(",\\"led\\":")', self.web_config)
+        self.assertIn('F(",\\"ledColor\\":")', self.web_config)
+        self.assertIn('F(",\\"ledActive\\":")', self.web_config)
+        self.assertIn('F(",\\"borderColor\\":")', self.web_config)
+        self.assertIn("hardwareLed", self.web_config)
+        self.assertIn("led.style.background=b.ledColor", self.web_config)
+        self.assertIn("led.style.opacity=b.ledActive?'1':'0.35'", self.web_config)
+        self.assertIn("slot.style.borderColor=s.borderColor||'#666'", self.web_config)
+
     def test_hardware_websocket_control_path_is_queued_and_bounded(self) -> None:
         self.assertIn("controller_queue_virtual_control_event", self.web_config)
         self.assertIn("hardware_release_active_virtual_controls", self.web_config)

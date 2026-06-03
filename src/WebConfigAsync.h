@@ -156,6 +156,46 @@ void hardware_append_json_string(String& json, const String& value)
   json += "\"";
 }
 
+void hardware_append_json_color(String& json, uint32_t color)
+{
+  char colorString[8];
+  snprintf(colorString, sizeof(colorString), "#%06lx", (unsigned long)(color & 0xFFFFFF));
+  hardware_append_json_string(json, String(colorString));
+}
+
+String hardware_led_css_color(byte led)
+{
+  if (led >= LEDS) return F("#000000");
+
+  const CRGB& cached = lastLedColor[currentBank][led];
+  const pedalino::RgbColor cssColor =
+      pedalino::unswap_rgb_order({cached.red, cached.green, cached.blue},
+                                 rgbOrder,
+                                 RGB,
+                                 RBG,
+                                 GRB,
+                                 GBR,
+                                 BRG,
+                                 BGR);
+
+  char colorString[8];
+  snprintf(colorString,
+           sizeof(colorString),
+           "#%02x%02x%02x",
+           (unsigned int)cssColor.red,
+           (unsigned int)cssColor.green,
+           (unsigned int)cssColor.blue);
+  return String(colorString);
+}
+
+bool hardware_led_active(byte led)
+{
+  if (led >= LEDS) return false;
+
+  const CRGB& cached = lastLedColor[currentBank][led];
+  return cached.red != 0 || cached.green != 0 || cached.blue != 0;
+}
+
 String hardware_bank_label()
 {
   String label = banknames[currentBank][0] == 0
@@ -280,15 +320,24 @@ String hardware_state_json()
     if (i > 0) json += ",";
     const pedalino::HardwareControlMapping mapping = controller_virtual_control_mapping(i);
     const bool active = mapping.supported && currentMIDIValue[currentBank][mapping.pedal][mapping.button] > 0;
+    action* bestAction = hardware_best_action_for_control(i);
+    byte buttonLed = controls[i].led;
+    if (bestAction != nullptr) buttonLed = led_control(bestAction->control, bestAction->led);
     const String fallback = String("Control ") + String(i + 1);
     json += F("{\"id\":");
     json += (i + 1);
     json += F(",\"label\":");
-    hardware_append_json_string(json, hardware_action_label(hardware_best_action_for_control(i), active, fallback));
+    hardware_append_json_string(json, hardware_action_label(bestAction, active, fallback));
     json += F(",\"enabled\":");
     json += mapping.supported ? F("true") : F("false");
     json += F(",\"reason\":");
     hardware_append_json_string(json, mapping.supported ? String("") : String(mapping.reason));
+    json += F(",\"led\":");
+    json += buttonLed < LEDS ? buttonLed + 1 : 0;
+    json += F(",\"ledColor\":");
+    hardware_append_json_string(json, hardware_led_css_color(buttonLed));
+    json += F(",\"ledActive\":");
+    json += hardware_led_active(buttonLed) ? F("true") : F("false");
     json += "}";
   }
 
@@ -303,6 +352,8 @@ String hardware_state_json()
     hardware_append_json_string(json, hardware_action_label(hardware_best_action_for_slot(s), active, fallback, true));
     json += F(",\"active\":");
     json += active ? F("true") : F("false");
+    json += F(",\"borderColor\":");
+    hardware_append_json_color(json, slotBorderColor[s]);
     json += "}";
   }
   json += F("]}");
@@ -3707,8 +3758,9 @@ void get_hardware_page(unsigned int start, unsigned int len) {
     page += F("<div class='col-6 col-md-4'>");
     page += F("<button type='button' class='btn btn-outline-primary w-100 hardwareButton' data-control='");
     page += i;
-    page += F("' style='min-height:96px;font-weight:700;white-space:normal;' disabled>");
-    page += F("<span>Control ");
+    page += F("' style='min-height:96px;font-weight:700;white-space:normal;position:relative;' disabled>");
+    page += F("<span class='hardwareLed' style='position:absolute;right:10px;top:10px;width:14px;height:14px;border-radius:50%;border:1px solid rgba(255,255,255,.65);background:#000;opacity:.35;box-shadow:0 0 0 1px rgba(0,0,0,.25);'></span>");
+    page += F("<span class='hardwareButtonLabel'>Control ");
     page += i;
     page += F("</span>");
     page += F("</button>");
@@ -3753,8 +3805,8 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("function hardwareApplyState(state){");
   page += F("const bank=document.getElementById('hardwareBank');if(bank)bank.textContent=state.bankName||('Bank '+state.bank);");
   page += F("const select=document.getElementById('hardwareBankSelect');if(select&&state.bank!==undefined)select.value=String(state.bank);");
-  page += F("(state.buttons||[]).forEach(function(b){const btn=document.querySelector('.hardwareButton[data-control=\"'+b.id+'\"]');if(!btn)return;btn.disabled=!b.enabled;btn.title=b.reason||'';const span=btn.querySelector('span');if(span)span.textContent=b.label||('Control '+b.id);});");
-  page += F("(state.slots||[]).forEach(function(s){const slot=document.getElementById('hardwareSlot'+s.id);if(!slot)return;slot.textContent=s.label||('S'+s.id);slot.style.borderColor=s.active?'#0d6efd':'#666';slot.style.background=s.active?'#0d6efd':'#111';});");
+  page += F("(state.buttons||[]).forEach(function(b){const btn=document.querySelector('.hardwareButton[data-control=\"'+b.id+'\"]');if(!btn)return;btn.disabled=!b.enabled;btn.title=b.reason||'';const label=btn.querySelector('.hardwareButtonLabel');if(label)label.textContent=b.label||('Control '+b.id);const led=btn.querySelector('.hardwareLed');if(led){led.style.background=b.ledColor||'#000';led.style.opacity=b.ledActive?'1':'0.35';led.title=b.led?('LED '+b.led):'No LED';}});");
+  page += F("(state.slots||[]).forEach(function(s){const slot=document.getElementById('hardwareSlot'+s.id);if(!slot)return;slot.textContent=s.label||('S'+s.id);slot.style.borderColor=s.borderColor||'#666';slot.style.background=s.active?'#1b1f24':'#111';slot.style.boxShadow=s.active?('0 0 0 2px '+(s.borderColor||'#666')+' inset'):'none';});");
   page += F("}");
   page += F("function hardwareConnect(){const protocol=location.protocol==='https:'?'wss://':'ws://';hardwareSocket=new WebSocket(protocol+location.host+'/ws');");
   page += F("hardwareSocket.onopen=function(){hardwareSetStatus('Connected','bg-success');hardwareSend('hardware-state');};");
