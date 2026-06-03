@@ -10,16 +10,16 @@
 5. `a5cb5ca` (2026-04-23) - Map MIDI in pin to a separate unused pedal pin
 6. `e9c40af` (2026-04-23) - Fixing MIDI in actions + display, fixing tags display correctly
 7. `6dcd6cf` (2026-04-23) - Update feature doc
-8. `TBD` - Pending local documentation/workflow updates
-9. `TBD` - HX Stomp looper bank config refresh
-10. `TBD` - Per-bank incoming MIDI actions
-11. `TBD` - Config surface consistency checks
-12. `TBD` - Native unit test scaffold
-13. `TBD` - Expanded native and Web/config contract tests
-14. `TBD` - WLED HTTP action
-15. `TBD` - WLED interface kill switch and disabled default
-16. `TBD` - Incoming MIDI Web page chunking fix
-17. `TBD` - Web hardware test page
+8. `cd434da` - Persistent local documentation/workflow updates
+9. `cd434da` - HX Stomp looper bank config refresh
+10. `9bd0685..fd082d8` - Per-bank incoming MIDI actions
+11. `8b80c67` - Config surface consistency checks
+12. `55a783f` - Native unit test scaffold
+13. `d73bf20` - Expanded native and Web/config contract tests
+14. `f707058` - WLED HTTP action
+15. `f707058` - WLED interface kill switch and disabled default
+16. `f707058` - Incoming MIDI Web page chunking fix
+17. `bc7384e..0c152c2` - Web hardware test page
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -58,19 +58,19 @@
 ### `6dcd6cf` - Feature doc update
 - Updated the incoming MIDI Actions feature doc to reflect the latest behavior.
 
-### `TBD` - Pending local documentation/workflow updates
+### `cd434da` - Persistent local documentation/workflow updates
 - Added `ADDITIONAL-CONTEXT.md` at the repository root for persistent user-specific hardware layout notes.
 - Updated `AGENTS.md` to reference `ADDITIONAL-CONTEXT.md` during startup/context gathering.
 - Added slot-to-footswitch mapping and current HX looper bank placement notes to `ADDITIONAL-CONTEXT.md`.
 
-### `TBD` - HX Stomp looper bank config refresh
+### `cd434da` - HX Stomp looper bank config refresh
 - Replaced `Bank 2` (`:HX Looper`) in `current-cfg-230426.cfg` and `new-230426.cfg` with a focused HX Stomp looper layout on `Control 4..6`.
 - Added dedicated looper sequences for `REC/ODUB`, `PLAY/STOP`, and `UNDO/REDO`, and cleared the extra looper sequence slots that were no longer used.
 - Added `Control 3` `Long Press` as a dedicated HX looper `Clear Loop` action (`CC52`) so loop erase stays available without occupying one of the main three transport switches.
 - Removed provisional HX looper incoming trigger rules for now, so Bank 2 currently runs as a local-state looper layout without receive-side sync.
 - Compatibility note: `UNDO/REDO` remains effectively stateless in Pedalino, and the looper labels/slot states will not follow HX changes made from the HX itself or another controller until verified feedback mapping is added.
 
-### `TBD` - Per-bank incoming MIDI actions
+### `9bd0685..fd082d8` - Per-bank incoming MIDI actions
 - Changed incoming MIDI trigger groups from one profile-wide ruleset to bank-scoped rules using `Global` bank `0` plus banks `1..20`.
 - Updated runtime dispatch so incoming MIDI evaluates `Global` rules first, then the current bank, and can continue into the newly selected bank when a global trigger performs `Set Bank`.
 - Added sparse per-bank incoming-trigger storage in RAM plus per-bank NVS persistence keys, while migrating older grouped `IncomingTriggers` entries without a trigger-level `Bank` into `Global`.
@@ -81,13 +81,13 @@
 - Updated JSON/schema support so each `IncomingTriggers` entry persists its owning bank.
 - Compatibility note: legacy flat `IncomingActions` still requires manual recreation, but prior grouped `IncomingTriggers` configs now load into `Global` automatically when their trigger-level `Bank` field is missing; this migration was confirmed on the LilyGO T-Display S3 with existing stored rules.
 
-### `TBD` - Config surface consistency checks
+### `8b80c67` - Config surface consistency checks
 - Added a lightweight Python validation script for action string mappings, JSON schema action enums, and key Web UI labels.
 - Added unit coverage for the validation helpers and wired the same local validation script into CI before PlatformIO firmware/filesystem builds.
 - Compatibility note: no firmware behavior, config format, or web UI behavior changed.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
 
-### `TBD` - Native unit test scaffold
+### `55a783f` - Native unit test scaffold
 - Added a PlatformIO `native` environment backed by a project-local `native_host` board definition for host-side Unity tests.
 - Extracted dependency-free core helpers for `map2` and incoming MIDI trigger matching into `src/PedalinoCoreLogic.h`, and wired the existing firmware paths through those helpers.
 - Added native Unity coverage for `map2` endpoint/rounding/zero-width behavior and incoming MIDI trigger matching for CC/PC, Any/Exact values, Any channel, wrong channel/number, and unsupported message types.
@@ -95,14 +95,14 @@
 - Compatibility note: intended firmware behavior and config format are unchanged; this is a testability and CI-gating change.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
 
-### `TBD` - Expanded native and Web/config contract tests
+### `d73bf20` - Expanded native and Web/config contract tests
 - Expanded host-side native Unity coverage for analog response mapping, display overlay label selection, slot-state tag decisions, incoming MIDI dispatch order and bank scope handling, RGB LED order swaps, chunked Web UI page trimming, and tap-tempo averaging/reset behavior.
 - Added Python contract coverage for `/incoming-actions` route/form fields, duplicate-bank action wiring, sequence-name UI/config contracts, legacy incoming-action import warnings, `SequenceNames` schema/runtime limits, and current plus legacy `IncomingTriggers` fixture support.
 - Wired the new Web/config contract tests into build, CodeQL, and release workflows alongside the existing local validation tests.
 - Compatibility note: intended firmware behavior and config format are unchanged; production paths now delegate more small decisions to dependency-free helpers so they can be regression-tested on the native host target.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
 
-### `TBD` - WLED HTTP action
+### `f707058` - WLED HTTP action
 - Added first-class `WLED` actions for normal actions, sequence steps, and incoming MIDI target actions.
 - Added global `WLEDAddress` configuration in Options, exported JSON, schema, and NVS/SPIFFS globals. The value is a host/IP with optional port; firmware sends to `http://<WLEDAddress>/json/state`.
 - Added queued best-effort WLED HTTP delivery from the low-priority Wi-Fi loop, with a small fixed queue, 500 ms HTTP timeout, no retry/persistent queue, and debug drops when the address is empty or invalid.
@@ -111,7 +111,7 @@
 - Compatibility note: existing non-WLED action, sequence, and incoming-trigger serialization remains unchanged. WLED actions require Wi-Fi and one configured global WLED target; analog/jog continuous WLED output is intentionally not supported in this first pass.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "$PWD\.tmp"; pio test -e native`, and `$env:TMPDIR = "$PWD\.tmp"; pio run -e lilygo-t-display-s3`.
 
-### `TBD` - WLED interface kill switch and disabled default
+### `f707058` - WLED interface kill switch and disabled default
 - Added a seventh `WLED` row to the Interfaces tab with a single `Enabled` switch backed by the interface `Out` state.
 - WLED actions now check the WLED interface state before enqueueing or sending HTTP requests, so disabling WLED blocks normal action, sequence, and incoming-trigger WLED output paths.
 - Clearing the WLED interface also clears any pending WLED HTTP queue entries, preventing stale WLED requests from firing later after the interface is re-enabled.
@@ -120,13 +120,13 @@
 - Compatibility note: WLED output is disabled by default. Use Interfaces -> WLED -> Enabled to allow WLED action side effects when the integration is in use.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `pio test -e native`, and `pio run -e lilygo-t-display-s3`.
 
-### `TBD` - Incoming MIDI Web page chunking fix
+### `f707058` - Incoming MIDI Web page chunking fix
 - Added extra chunk-trim checkpoints inside the Incoming MIDI Actions editor after trigger headers, LED action fields, and WLED action fields.
 - This keeps the generated `/incoming-actions` HTML chunks below the reserved 8192-byte page buffer more consistently and avoids the serial `Memory fragmentation warning: webpage memory allocation ... greater then 8192 bytes reserved` message seen when editing WLED incoming actions.
 - Compatibility note: no config format or runtime MIDI behavior changed; this only changes web-page chunk generation.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, and `pio run -e lilygo-t-display-s3`.
 
-### `TBD` - Web hardware test page
+### `bc7384e..0c152c2` - Web hardware test page
 - Added a WebSocket-first `/hardware` page for LilyGO T-Display S3 builds with six virtual controls mapped to fixed Controls `1..6` and a read-only 2x3 display-state preview.
 - Added a `/hardware` bank selector that reuses the existing live-page `bankN` WebSocket command to change the active device bank and stays in sync with hardware state updates.
 - Enabled `WEBSOCKET` only for the `lilygo-t-display-s3` PlatformIO environment, leaving other board build flags unchanged.

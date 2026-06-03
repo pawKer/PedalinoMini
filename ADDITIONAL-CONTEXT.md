@@ -46,3 +46,11 @@ l6  l7  l8  l9  l10
 
 - `control 7` corresponds to an expression pedal input.
 - The expression pedal is not currently used.
+
+## Web Hardware Test Page Notes
+
+- User intent: `/hardware` is for at-home configuration and regression testing, not live performance use.
+- Treat `/hardware` as an active remote-control surface: virtual buttons enqueue real press/release events and the bank selector changes the device's current bank.
+- `/events` is a Server-Sent Events endpoint, so opening it directly can look blank while still working; `/hardware` also asks `/ws` directly for initial state.
+- The `/ws` endpoint is shared with `/live`; avoid sending unsolicited text/JSON to generic WebSocket clients when extending hardware-page behavior.
+- On reachable/shared Wi-Fi, configure HTTP credentials before using live WebSocket/EventSource controls; with no username configured, `/ws` commands are reachable to clients on the device network.
