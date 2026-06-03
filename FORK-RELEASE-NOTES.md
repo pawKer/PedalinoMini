@@ -20,6 +20,7 @@
 15. `f707058` - WLED interface kill switch and disabled default
 16. `f707058` - Incoming MIDI Web page chunking fix
 17. `bc7384e..0c152c2` - Web hardware test page
+18. `6e864a7` - Hardware test visual state preview
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -139,10 +140,18 @@
 - Size note for `lilygo-t-display-s3`: baseline firmware was `2,408,105` bytes flash / `107,176` bytes RAM; final branch build is `2,457,141` bytes flash / `107,600` bytes RAM, leaving `1,081,803` bytes free in the `3,538,944` byte OTA app slot.
 - Validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python scripts/validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3 -t buildfs`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`.
 
+### `6e864a7` - Hardware test visual state preview
+- Added LED indicators to the `/hardware` virtual buttons using each button's best matching action LED, falling back to the control's default LED when no action-specific LED is available.
+- Added configured slot border colors to the `/hardware` 2x3 display preview and kept the active slot state visible with a subtle inset highlight.
+- Added a dependency-free `unswap_rgb_order` helper so cached FastLED hardware-order colors render as normal browser CSS colors across configured RGB order settings.
+- Compatibility note: saved configuration, controller dispatch, physical switch handling, and MIDI output behavior are unchanged; this only extends the `/hardware` state payload and browser rendering while the hardware test page is in use.
+- Size note for `lilygo-t-display-s3`: final branch build is `2,458,445` bytes flash / `107,600` bytes RAM, leaving `1,080,499` bytes free in the `3,538,944` byte OTA app slot.
+- Validation: `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python -B scripts\validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3`, and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3 -t buildfs`.
+
 
 ## Validation
-- Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-03, Web hardware test page bank selector; RAM `107,600` bytes, flash `2,457,141` bytes, `1,081,803` bytes free in the OTA app slot).
-- Latest filesystem build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3 -t buildfs` (success, 2026-06-03, Web hardware test page bank selector).
-- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (31 Unity tests passed, 2026-06-03).
-- Latest local Python validation: `python -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (25 tests passed, 2026-06-03) and `python scripts/validate_config_surfaces.py` (success, 2026-06-03).
+- Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-03, Hardware test visual state preview; RAM `107,600` bytes, flash `2,458,445` bytes, `1,080,499` bytes free in the OTA app slot).
+- Latest filesystem build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3 -t buildfs` (success, 2026-06-03, Hardware test visual state preview).
+- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (32 Unity tests passed, 2026-06-03).
+- Latest local Python validation: `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (26 tests passed, 2026-06-03) and `python -B scripts\validate_config_surfaces.py` (success, 2026-06-03).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.
