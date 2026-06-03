@@ -209,36 +209,36 @@ def main() -> int:
     assert_contains_required_labels(
         "Actions.Message schema enum",
         action_messages,
-        ["Sequence", "Set Led Color", "Set Slot State", "Repeat Overwrite"],
+        ["Sequence", "Set Led Color", "Set Slot State", "Repeat Overwrite", "WLED"],
     )
     assert_contains_required_labels(
         "Sequences.Message schema enum",
         sequence_messages,
-        ["Sequence", "Set Bank", "Set Led Color"],
+        ["Sequence", "Set Bank", "Set Led Color", "WLED"],
     )
     assert_contains_required_labels(
         "IncomingTriggers.Actions.Action schema enum",
         incoming_target_actions,
-        ["Set Led Color", "Set Slot State", "Set Bank"],
+        ["Set Led Color", "Set Slot State", "Set Bank", "WLED"],
     )
 
     assert_web_option_group_includes_required_labels(
         "Actions.Message options",
         web_config,
         "act->midiMessage ==",
-        ["Sequence", "Set Led Color", "Set Slot State", "Repeat Overwrite"],
+        ["Sequence", "Set Led Color", "Set Slot State", "Repeat Overwrite", "WLED"],
     )
     assert_web_option_group_includes_required_labels(
         "Sequences.Message options",
         web_config,
         "sequences[s-1][i-1].midiMessage ==",
-        ["Sequence", "Set Bank", "Set Led Color"],
+        ["Sequence", "Set Bank", "Set Led Color", "WLED"],
     )
     assert_web_option_group_includes_required_labels(
         "IncomingTriggers.Actions.Action options",
         web_config,
         "bankTriggers[i].actions[a].targetAction ==",
-        ["Set Led Color", "Set Slot State", "Set Bank"],
+        ["Set Led Color", "Set Slot State", "Set Bank", "WLED"],
     )
 
     print("Config surface validation passed.")

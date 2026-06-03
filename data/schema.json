@@ -52,6 +52,11 @@
                         "minLength": 0,
                         "maxLength": 32
                     },
+                    "WLEDAddress": {
+                        "type": "string",
+                        "minLength": 0,
+                        "maxLength": 64
+                    },
                     "Theme": {
                         "type": "string",
                         "minLength": 0,
@@ -268,6 +273,7 @@
                                 "Profile-",
                                 "Set Led Color",
                                 "Set Slot State",
+                                "WLED",
                                 "Repeat",
                                 "Repeat Overwrite",
                                 "Device Info",
@@ -296,6 +302,33 @@
                         "type": "string",
                         "minLength": 0,
                         "maxLength": 50
+                    },
+                    "WLED": {
+                        "type": "object",
+                        "properties": {
+                            "Command": {
+                                "type": "string",
+                                "enum": ["Power", "Preset", "Brightness", "Solid Color", "Effect"]
+                            },
+                            "Value": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 255
+                            },
+                            "Speed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 255
+                            },
+                            "Intensity": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 255
+                            },
+                            "Color": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
@@ -355,7 +388,8 @@
                                 "Stop",
                                 "Continue",
                                 "Set Bank",
-                                "Set Led Color"]
+                                "Set Led Color",
+                                "WLED"]
                     },
                     "Channel": {
                         "type": "integer",
@@ -378,6 +412,33 @@
                     },
                     "Color": {
                         "type": "string"
+                    },
+                    "WLED": {
+                        "type": "object",
+                        "properties": {
+                            "Command": {
+                                "type": "string",
+                                "enum": ["Power", "Preset", "Brightness", "Solid Color", "Effect"]
+                            },
+                            "Value": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 255
+                            },
+                            "Speed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 255
+                            },
+                            "Intensity": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 255
+                            },
+                            "Color": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
@@ -386,13 +447,13 @@
         "Interfaces": {
             "type": "array",
             "minItems": 6,
-            "maxItems": 6,
+            "maxItems": 7,
             "items": {
                 "type": "object",
                 "properties": {
                     "Interface": {
                         "type": "integer",
-                        "enum": [0, 1, 2, 3, 4, 5, 6]
+                        "enum": [0, 1, 2, 3, 4, 5, 6, 7]
                     },
                     "Name": {
                         "type": "string",
@@ -569,7 +630,7 @@
                             "properties": {
                                 "Action": {
                                     "type": "string",
-                                    "enum": ["Set Led Color", "Set Slot State", "Set Bank"]
+                                    "enum": ["Set Led Color", "Set Slot State", "Set Bank", "WLED"]
                                 },
                                 "Led": {
                                     "type": "integer",
@@ -591,6 +652,33 @@
                                 "Bank": {
                                     "type": "integer",
                                     "enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+                                },
+                                "WLED": {
+                                    "type": "object",
+                                    "properties": {
+                                        "Command": {
+                                            "type": "string",
+                                            "enum": ["Power", "Preset", "Brightness", "Solid Color", "Effect"]
+                                        },
+                                        "Value": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255
+                                        },
+                                        "Speed": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255
+                                        },
+                                        "Intensity": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255
+                                        },
+                                        "Color": {
+                                            "type": "string"
+                                        }
+                                    }
                                 }
                             }
                         }

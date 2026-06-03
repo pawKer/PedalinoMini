@@ -1171,7 +1171,7 @@ void OnOscPlay(OSCMessage &msg)
 void OnOscInterface(OSCMessage &msg)
 {
   DPRINT("OSC message /interface %d received from %s\n", msg.getInt(0), oscControllerIP.toString().c_str());
-  currentInterface = constrain(msg.getInt(0), 0, INTERFACES);
+  currentInterface = constrain(msg.getInt(0), 0, INTERFACES - 1);
   OscSendInterface();
 }
 

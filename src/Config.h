@@ -92,6 +92,7 @@ byte ActionStringToEnum (String msg)
 
   else if (msg.equals("Set Led Color"))       return PED_ACTION_LED_COLOR;
   else if (msg.equals("Set Slot State"))      return PED_ACTION_SET_SLOT_STATE;
+  else if (msg.equals("WLED"))                return PED_ACTION_WLED;
 
   else if (msg.equals("Repeat"))              return PED_ACTION_REPEAT;
   else if (msg.equals("Repeat Overwrite"))    return PED_ACTION_REPEAT_OVERWRITE;
@@ -222,6 +223,9 @@ String ActionEnumToString (byte msg)
           case PED_ACTION_SET_SLOT_STATE:
             return "Set Slot State";
             break;
+          case PED_ACTION_WLED:
+            return "WLED";
+            break;
           case PED_ACTION_REPEAT:
             return "Repeat";
             break;
@@ -237,6 +241,182 @@ String ActionEnumToString (byte msg)
           default:
             return "None";
             break;
+  }
+}
+
+byte WLEDCommandStringToEnum(const String& command)
+{
+  if (command.equals("Power"))       return PED_WLED_POWER;
+  if (command.equals("Preset"))      return PED_WLED_PRESET;
+  if (command.equals("Brightness"))  return PED_WLED_BRIGHTNESS;
+  if (command.equals("Solid Color")) return PED_WLED_SOLID_COLOR;
+  if (command.equals("Effect"))      return PED_WLED_EFFECT;
+  return PED_WLED_POWER;
+}
+
+String WLEDCommandEnumToString(byte command)
+{
+  switch (command) {
+    case PED_WLED_POWER:
+      return "Power";
+    case PED_WLED_PRESET:
+      return "Preset";
+    case PED_WLED_BRIGHTNESS:
+      return "Brightness";
+    case PED_WLED_SOLID_COLOR:
+      return "Solid Color";
+    case PED_WLED_EFFECT:
+      return "Effect";
+    default:
+      return "Power";
+  }
+}
+
+byte wled_command_normalize(byte command)
+{
+  switch (command) {
+    case PED_WLED_POWER:
+    case PED_WLED_PRESET:
+    case PED_WLED_BRIGHTNESS:
+    case PED_WLED_SOLID_COLOR:
+    case PED_WLED_EFFECT:
+      return command;
+    default:
+      return PED_WLED_POWER;
+  }
+}
+
+void wled_config_normalize(byte& command, byte& value, byte& speed, byte& intensity, uint32_t& color)
+{
+  command = wled_command_normalize(command);
+  color &= 0xFFFFFF;
+
+  switch (command) {
+    case PED_WLED_POWER:
+      value = constrain(value, 0, 2);
+      speed = 0;
+      intensity = 0;
+      break;
+    case PED_WLED_PRESET:
+      value = constrain(value, 1, 250);
+      speed = 0;
+      intensity = 0;
+      break;
+    case PED_WLED_BRIGHTNESS:
+      value = constrain(value, 1, 255);
+      speed = 0;
+      intensity = 0;
+      break;
+    case PED_WLED_SOLID_COLOR:
+      value = 0;
+      speed = 0;
+      intensity = 0;
+      break;
+    case PED_WLED_EFFECT:
+      value = constrain(value, 0, 255);
+      speed = constrain(speed, 0, 255);
+      intensity = constrain(intensity, 0, 255);
+      break;
+  }
+}
+
+void wled_config_to_json(JsonObject jo, byte command, byte value, byte speed, byte intensity, uint32_t color)
+{
+  wled_config_normalize(command, value, speed, intensity, color);
+  jo["Command"] = WLEDCommandEnumToString(command);
+
+  switch (command) {
+    case PED_WLED_POWER:
+    case PED_WLED_PRESET:
+    case PED_WLED_BRIGHTNESS:
+      jo["Value"] = value;
+      break;
+    case PED_WLED_SOLID_COLOR: {
+      char colorText[8];
+      snprintf(colorText, sizeof(colorText), "#%06x", color & 0xFFFFFF);
+      jo["Color"] = colorText;
+      break;
+    }
+    case PED_WLED_EFFECT:
+      jo["Value"] = value;
+      jo["Speed"] = speed;
+      jo["Intensity"] = intensity;
+      break;
+  }
+}
+
+void wled_config_from_json(JsonVariant variant, byte& command, byte& value, byte& speed, byte& intensity, uint32_t& color)
+{
+  if (variant.is<JsonObject>()) {
+    JsonObject jo = variant.as<JsonObject>();
+    const char* commandText = jo["Command"] | nullptr;
+    if (commandText != nullptr) command = WLEDCommandStringToEnum(commandText);
+
+    switch (wled_command_normalize(command)) {
+      case PED_WLED_POWER:
+        value = constrain((int)(jo["Value"] | value), 0, 2);
+        break;
+      case PED_WLED_PRESET:
+        value = constrain((int)(jo["Value"] | value), 1, 250);
+        break;
+      case PED_WLED_BRIGHTNESS:
+        value = constrain((int)(jo["Value"] | value), 1, 255);
+        break;
+      case PED_WLED_SOLID_COLOR: {
+        unsigned int red = 0, green = 0, blue = 0;
+        sscanf(jo["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+        color = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+        break;
+      }
+      case PED_WLED_EFFECT:
+        value = constrain((int)(jo["Value"] | value), 0, 255);
+        speed = constrain((int)(jo["Speed"] | speed), 0, 255);
+        intensity = constrain((int)(jo["Intensity"] | intensity), 0, 255);
+        break;
+    }
+  }
+
+  wled_config_normalize(command, value, speed, intensity, color);
+}
+
+void action_config_from_json(action* act, JsonObject jo)
+{
+  if (act == nullptr) return;
+
+  unsigned int red = 0, green = 0, blue = 0;
+
+  act->control = jo["Control"];
+  act->control--;
+  act->control = constrain(act->control, 0, CONTROLS - 1);
+  act->led = jo["Led"];
+  act->led = (act->led == 0 ? LEDS : (act->led == 255 ? 255 : act->led - 1));
+  sscanf(jo["Color0"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+  act->color0 = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+  red = green = blue = 0;
+  sscanf(jo["Color1"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+  act->color1 = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+  strlcpy(act->tag0, jo["NameOff"] | "", sizeof(act->tag0));
+  strlcpy(act->tag1, jo["NameOn"]  | "", sizeof(act->tag1));
+  act->slot = jo["Slot"];
+  act->event = PED_EVENT_NONE;
+  for (byte m = 0; m < PED_EVENT_LAST; m++) {
+    if (eventName[m] == jo["Event"]) {
+      act->event = m;
+      break;
+    }
+  }
+  act->midiMessage = ActionStringToEnum(jo["Message"]);
+  act->midiChannel = jo["Channel"];
+  act->midiCode = jo["Code"];
+  act->midiValue1 = jo["Value1"];
+  act->midiValue2 = jo["Value2"];
+  strlcpy(act->oscAddress, jo["OSCAddress"] | "", sizeof(act->oscAddress));
+
+  if (act->midiMessage == PED_ACTION_WLED) {
+    wled_config_from_json(jo["WLED"], act->midiChannel, act->midiCode, act->midiValue1, act->midiValue2, act->color0);
+    act->led = 255;
+    act->color1 = 0;
+    act->oscAddress[0] = 0;
   }
 }
 
@@ -338,6 +518,7 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
     jo["PasswordSoftAP"]      = passwordSoftAP;
     jo["HTTPUsername"]        = httpUsername;
     jo["HTTPPassword"]        = httpPassword;
+    jo["WLEDAddress"]         = wledAddress;
     jo["Theme"]               = theme;
     jo["DebounceInterval"]    = debounceInterval;
     jo["SimultaneousGapTime"] = simultaneousGapTime;
@@ -453,11 +634,17 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
         jo["Slot"]            = act->slot;
         jo["Event"]           = eventName[act->event];
         jo["Message"]         = ActionEnumToString(act->midiMessage);
-        jo["Channel"]         = act->midiChannel;
-        jo["Code"]            = act->midiCode;
-        jo["Value1"]          = act->midiValue1;
-        jo["Value2"]          = act->midiValue2;
-        jo["OSCAddress"]      = act->oscAddress;
+        if (act->midiMessage == PED_ACTION_WLED) {
+          JsonObject wled = jo["WLED"].to<JsonObject>();
+          wled_config_to_json(wled, act->midiChannel, act->midiCode, act->midiValue1, act->midiValue2, act->color0);
+        }
+        else {
+          jo["Channel"]       = act->midiChannel;
+          jo["Code"]          = act->midiCode;
+          jo["Value1"]        = act->midiValue1;
+          jo["Value2"]        = act->midiValue2;
+          jo["OSCAddress"]    = act->oscAddress;
+        }
         act = act->next;
       }
     }
@@ -479,12 +666,23 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
           char color[8];
           JsonObject jo = jactions.add<JsonObject>();
           jo["Action"] = ActionEnumToString(bankTriggers[i].actions[a].targetAction);
-          jo["Led"]    = bankTriggers[i].actions[a].led;
-          snprintf(color, 8, "#%06x", bankTriggers[i].actions[a].color & 0xFFFFFF);
-          jo["Color"]  = color;
-          jo["Slot"]   = bankTriggers[i].actions[a].slot;
-          jo["State"]  = bankTriggers[i].actions[a].state;
-          jo["Bank"]   = bankTriggers[i].actions[a].bank;
+          if (bankTriggers[i].actions[a].targetAction == PED_ACTION_WLED) {
+            JsonObject wled = jo["WLED"].to<JsonObject>();
+            wled_config_to_json(wled,
+                                bankTriggers[i].actions[a].bank,
+                                bankTriggers[i].actions[a].led,
+                                bankTriggers[i].actions[a].slot,
+                                bankTriggers[i].actions[a].state,
+                                bankTriggers[i].actions[a].color);
+          }
+          else {
+            jo["Led"]  = bankTriggers[i].actions[a].led;
+            snprintf(color, 8, "#%06x", bankTriggers[i].actions[a].color & 0xFFFFFF);
+            jo["Color"] = color;
+            jo["Slot"] = bankTriggers[i].actions[a].slot;
+            jo["State"] = bankTriggers[i].actions[a].state;
+            jo["Bank"] = bankTriggers[i].actions[a].bank;
+          }
         }
       }
     }
@@ -520,7 +718,17 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
         jo["Sequence"]    = s + 1;
         jo["Step"]        = t + 1;
         jo["Message"]     = ActionEnumToString(sequences[s][t].midiMessage);
-        switch (sequences[s][t].midiMessage) {
+        if (sequences[s][t].midiMessage == PED_ACTION_WLED) {
+          JsonObject wled = jo["WLED"].to<JsonObject>();
+          wled_config_to_json(wled,
+                              sequences[s][t].midiChannel,
+                              sequences[s][t].midiCode,
+                              sequences[s][t].midiValue,
+                              sequences[s][t].led,
+                              sequences[s][t].color);
+        }
+        else {
+          switch (sequences[s][t].midiMessage) {
             case PED_SEQUENCE:
               jo["Channel"] = sequences[s][t].midiChannel + 1;
               break;
@@ -528,12 +736,13 @@ void spiffs_save_config(const String& filename, bool saveActions = true, bool sa
               jo["Channel"] = sequences[s][t].midiChannel;
               break;
           }
-        jo["Code"]        = sequences[s][t].midiCode;
-        jo["Value"]       = sequences[s][t].midiValue;
-        jo["Led"]         = (sequences[s][t].led == LEDS ? 0 : (sequences[s][t].led == 255 ? 255 : sequences[s][t].led + 1));
-        char color[8];
-        snprintf(color, 8, "#%06x", sequences[s][t].color);
-        jo["Color"]       = color;
+          jo["Code"]        = sequences[s][t].midiCode;
+          jo["Value"]       = sequences[s][t].midiValue;
+          jo["Led"]         = (sequences[s][t].led == LEDS ? 0 : (sequences[s][t].led == 255 ? 255 : sequences[s][t].led + 1));
+          char color[8];
+          snprintf(color, 8, "#%06x", sequences[s][t].color);
+          jo["Color"]       = color;
+        }
       }
     }
   }
@@ -599,10 +808,26 @@ void spiffs_save_profile(byte profile) {
 
 
 //
+//  Interface defaults for compatibility with older 6-interface profiles
+//
+
+void interfaces_set_wled_default()
+{
+  strlcpy(interfaces[PED_WLED].name, "WLED       ", sizeof(interfaces[PED_WLED].name));
+  interfaces[PED_WLED].midiIn    = PED_DISABLE;
+  interfaces[PED_WLED].midiOut   = PED_DISABLE;
+  interfaces[PED_WLED].midiThru  = PED_DISABLE;
+  interfaces[PED_WLED].midiClock = PED_DISABLE;
+}
+
+
+//
 //  Load configuration from SPIFFS file
 //
 
 void spiffs_load_config(const String& filename, bool loadActions = true, bool loadPedals = true, bool loadControls = true, bool loadInterfaces = true, bool loadSequences = true, bool loadOptions  = true, bool append = false) {
+
+  if (loadInterfaces) interfaces_set_wled_default();
 
 #ifdef BOARD_HAS_PSRAM
   JsonDocument jdoc(&allocator);
@@ -660,6 +885,7 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
           passwordSoftAP      = String((const char *)(jo["PasswordSoftAP"]        | passwordSoftAP.c_str()));
           httpUsername        = String((const char *)(jo["HTTPUsername"]          | httpUsername.c_str()));
           httpPassword        = String((const char *)(jo["HTTPPassword"]          | httpPassword.c_str()));
+          wledAddress         = String((const char *)(jo["WLEDAddress"]           | wledAddress.c_str()));
           theme               = String((const char *)(jo["Theme"]                 | theme.c_str()));
           debounceInterval    = jo["DebounceInterval"]                            | debounceInterval;
           simultaneousGapTime = jo["SimultaneousGapTime"]                         | simultaneousGapTime;
@@ -787,37 +1013,13 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
         if (!append) delete_actions();
         JsonArray ja = jp.value();
         for (JsonObject jo : ja) {
-          unsigned int red, green, blue;
           int b = jo["Bank"];
           b = constrain(b, 0, BANKS - 1);
           action *act = actions[b];
           if (act == nullptr) {
             actions[b] = (action*)malloc(sizeof(action));
             assert(actions[b] != nullptr);
-            actions[b]->control        = jo["Control"];
-            actions[b]->control--;
-            actions[b]->control        = constrain(actions[b]->control, 0, CONTROLS - 1);
-            actions[b]->led            = jo["Led"];
-            actions[b]->led            = (actions[b]->led == 0 ? LEDS : (actions[b]->led == 255 ? 255 : actions[b]->led - 1));
-            sscanf(jo["Color0"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
-            actions[b]->color0         = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
-            sscanf(jo["Color1"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
-            actions[b]->color1         = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
-            strlcpy(actions[b]->tag0,    jo["NameOff"] | "", sizeof(actions[b]->tag0));
-            strlcpy(actions[b]->tag1,    jo["NameOn"]  | "", sizeof(actions[b]->tag1));
-            actions[b]->slot           = jo["Slot"];
-            actions[b]->event = PED_EVENT_NONE;
-            for (byte m = 0; m < PED_EVENT_LAST; m++)
-              if (eventName[m] == jo["Event"]) {
-                actions[b]->event = m;
-                break;
-              }
-            actions[b]->midiMessage    = ActionStringToEnum(jo["Message"]);
-            actions[b]->midiChannel    = jo["Channel"];
-            actions[b]->midiCode       = jo["Code"];
-            actions[b]->midiValue1     = jo["Value1"];
-            actions[b]->midiValue2     = jo["Value2"];
-            strlcpy(actions[b]->oscAddress, jo["OSCAddress"] | "", sizeof(actions[b]->oscAddress));
+            action_config_from_json(actions[b], jo);
             actions[b]->next           = nullptr;
           }
           else while (act != nullptr) {
@@ -826,30 +1028,7 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
                   assert(act->next != nullptr);
                   //if (!act->next) return;
                   act = act->next;
-                  act->control        = jo["Control"];
-                  act->control--;
-                  act->control        = constrain(act->control, 0, CONTROLS - 1);
-                  act->led            = jo["Led"];
-                  act->led            = (act->led == 0 ? LEDS : (act->led == 255 ? 255 : act->led - 1));
-                  sscanf(jo["Color0"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
-                  act->color0         = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
-                  sscanf(jo["Color1"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
-                  act->color1         = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
-                  strlcpy(act->tag0,    jo["NameOff"] | "", sizeof(act->tag0));
-                  strlcpy(act->tag1,    jo["NameOn"]  | "", sizeof(act->tag1));
-                  act->slot           = jo["Slot"];
-                  act->event = PED_EVENT_NONE;
-                  for (byte m = 0; m < PED_EVENT_LAST; m++)
-                    if (eventName[m] == jo["Event"]) {
-                      act->event = m;
-                      break;
-                    }
-                  act->midiMessage    = ActionStringToEnum(jo["Message"]);
-                  act->midiChannel    = jo["Channel"];
-                  act->midiCode       = jo["Code"];
-                  act->midiValue1     = jo["Value1"];
-                  act->midiValue2     = jo["Value2"];
-                  strlcpy(act->oscAddress, jo["OSCAddress"] | "", sizeof(act->oscAddress));
+                  action_config_from_json(act, jo);
                   act->next           = nullptr;
                 }
                 act = act->next;
@@ -889,15 +1068,27 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
               target->targetAction = ActionStringToEnum(actionJson["Action"] | "Set Led Color");
               if (target->targetAction != PED_ACTION_LED_COLOR &&
                   target->targetAction != PED_ACTION_SET_SLOT_STATE &&
-                  target->targetAction != PED_ACTION_BANK) {
+                  target->targetAction != PED_ACTION_BANK &&
+                  target->targetAction != PED_ACTION_WLED) {
                 target->targetAction = PED_ACTION_LED_COLOR;
               }
-              target->led = constrain((int)(actionJson["Led"] | 1), 1, LEDS);
-              sscanf(actionJson["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
-              target->color = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
-              target->slot = constrain((int)(actionJson["Slot"] | 1), 1, SLOTS);
-              target->state = constrain((int)(actionJson["State"] | 0), 0, 1);
-              target->bank = constrain((int)(actionJson["Bank"] | 1), 1, BANKS - 1);
+              if (target->targetAction == PED_ACTION_WLED) {
+                target->bank = constrain((int)(actionJson["Bank"] | PED_WLED_POWER), PED_WLED_POWER, PED_WLED_EFFECT);
+                target->led = constrain((int)(actionJson["Led"] | 2), 0, 255);
+                sscanf(actionJson["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+                target->color = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+                target->slot = constrain((int)(actionJson["Slot"] | 0), 0, 255);
+                target->state = constrain((int)(actionJson["State"] | 0), 0, 255);
+                wled_config_from_json(actionJson["WLED"], target->bank, target->led, target->slot, target->state, target->color);
+              }
+              else {
+                target->led = constrain((int)(actionJson["Led"] | 1), 1, LEDS);
+                sscanf(actionJson["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+                target->color = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+                target->slot = constrain((int)(actionJson["Slot"] | 1), 1, SLOTS);
+                target->state = constrain((int)(actionJson["State"] | 0), 0, 1);
+                target->bank = constrain((int)(actionJson["Bank"] | 1), 1, BANKS - 1);
+              }
               trigger->actionCount++;
             }
           }
@@ -948,23 +1139,39 @@ void spiffs_load_config(const String& filename, bool loadActions = true, bool lo
           t--;
           t = constrain(t, 0, STEPS - 1);
           sequences[s][t].midiMessage = ActionStringToEnum(jo["Message"]);
-          sequences[s][t].midiChannel = jo["Channel"];
-          switch (sequences[s][t].midiMessage) {
-            case PED_SEQUENCE:
-              sequences[s][t].midiChannel  = constrain(sequences[s][t].midiChannel - 1, 0, SEQUENCES - 1);
-              break;
-            default:
-              sequences[s][t].midiChannel = constrain(sequences[s][t].midiChannel, 0, 17);
-              break;
+          if (sequences[s][t].midiMessage == PED_ACTION_WLED) {
+            sequences[s][t].midiChannel = constrain((int)(jo["Channel"] | PED_WLED_POWER), PED_WLED_POWER, PED_WLED_EFFECT);
+            sequences[s][t].midiCode    = constrain((int)(jo["Code"] | 2), 0, 255);
+            sequences[s][t].midiValue   = constrain((int)(jo["Value"] | 0), 0, 255);
+            sequences[s][t].led         = constrain((int)(jo["Led"] | 0), 0, 255);
+            sscanf(jo["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+            sequences[s][t].color       = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+            wled_config_from_json(jo["WLED"],
+                                  sequences[s][t].midiChannel,
+                                  sequences[s][t].midiCode,
+                                  sequences[s][t].midiValue,
+                                  sequences[s][t].led,
+                                  sequences[s][t].color);
           }
-          sequences[s][t].midiCode    = jo["Code"];
-          sequences[s][t].midiCode    = constrain(sequences[s][t].midiCode,    0, MIDI_RESOLUTION - 1);
-          sequences[s][t].midiValue   = jo["Value"];
-          sequences[s][t].midiValue   = constrain(sequences[s][t].midiValue,  0, MIDI_RESOLUTION - 1);
-          sequences[s][t].led         = jo["Led"];
-          sequences[s][t].led         = (sequences[s][t].led == 0 ? LEDS : (sequences[s][t].led == 255 ? 255 : sequences[s][t].led - 1));
-          sscanf(jo["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
-          sequences[s][t].color       = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+          else {
+            sequences[s][t].midiChannel = jo["Channel"];
+            switch (sequences[s][t].midiMessage) {
+              case PED_SEQUENCE:
+                sequences[s][t].midiChannel  = constrain(sequences[s][t].midiChannel - 1, 0, SEQUENCES - 1);
+                break;
+              default:
+                sequences[s][t].midiChannel = constrain(sequences[s][t].midiChannel, 0, 17);
+                break;
+            }
+            sequences[s][t].midiCode    = jo["Code"];
+            sequences[s][t].midiCode    = constrain(sequences[s][t].midiCode,    0, MIDI_RESOLUTION - 1);
+            sequences[s][t].midiValue   = jo["Value"];
+            sequences[s][t].midiValue   = constrain(sequences[s][t].midiValue,  0, MIDI_RESOLUTION - 1);
+            sequences[s][t].led         = jo["Led"];
+            sequences[s][t].led         = (sequences[s][t].led == 0 ? LEDS : (sequences[s][t].led == 255 ? 255 : sequences[s][t].led - 1));
+            sscanf(jo["Color"] | "#000000", "#%02x%02x%02x", &red, &green, &blue);
+            sequences[s][t].color       = ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff);
+          }
         }
       }
     }
@@ -1013,6 +1220,7 @@ void load_factory_default()
   passwordSoftAP     = getChipId();
   httpUsername       = "";
   httpPassword       = "";
+  wledAddress        = "";
   theme              = "bootstrap";
   currentBank        = 1;
   currentProfile     = 0;
@@ -1366,6 +1574,7 @@ void load_factory_default()
   }
   interfaces[PED_USBMIDI].midiIn = PED_DISABLE;
   interfaces[PED_DINMIDI].midiIn = PED_DISABLE;
+  interfaces_set_wled_default();
 
   for (byte s = 0; s < SEQUENCES; s++) {
     sequenceNames[s][0] = '\0';
@@ -1481,6 +1690,21 @@ void eeprom_update_login_credentials(const String& username = "", const String& 
 #else
   httpUsername = username;
   httpPassword = password;
+  spiffs_save_globals();
+#endif
+}
+
+void eeprom_update_wled_address(const String& address = "")
+{
+#ifdef NVS
+  DPRINT("Updating NVS ... ");
+  preferences.begin("Global", false);
+  preferences.putString("WLED Address", address);
+  preferences.end();
+  DPRINT("done\n");
+  DPRINT("[NVS][Global][WLED Address]: %s\n", address.c_str());
+#else
+  wledAddress = address;
   spiffs_save_globals();
 #endif
 }
@@ -1828,6 +2052,7 @@ void eeprom_read_global()
     passwordSoftAP      = preferences.getString("AP Password");
     httpUsername        = preferences.getString("HTTP Username");
     httpPassword        = preferences.getString("HTTP Password");
+    wledAddress         = preferences.getString("WLED Address");
     theme               = preferences.getString("Bootstrap Theme");
     currentProfile      = preferences.getUChar("Current Profile");
     flipScreen          = preferences.getBool("Flip Screen");
@@ -1859,6 +2084,7 @@ void eeprom_read_global()
     DPRINT("[NVS][Global][AP Password]:      %s\n", passwordSoftAP.c_str());
     DPRINT("[NVS][Global][HTTP Username]:    %s\n", httpUsername.c_str());
     DPRINT("[NVS][Global][HTTP Password]:    %s\n", httpPassword.c_str());
+    DPRINT("[NVS][Global][WLED Address]:     %s\n", wledAddress.c_str());
     DPRINT("[NVS][Global][Bootstrap Theme]:  %s\n", theme.c_str());
     DPRINT("[NVS][Global][Current Profile]:  %d\n", currentProfile);
     DPRINT("[NVS][Global][Flip Screen]:      %d\n", flipScreen);
@@ -1938,6 +2164,7 @@ void eeprom_read_profile(byte profile = currentProfile)
   if (slotColorBytes != sizeof(slotBorderColor))
     DPRINT("Slot border colors not found in profile, using defaults\n");
   preferences.getBytes("BankNames",   &banknames,   sizeof(banknames));
+  interfaces_set_wled_default();
   preferences.getBytes("Interfaces",  &interfaces,  sizeof(interfaces));
   preferences.getBytes("Sequences",   &sequences,   sizeof(sequences));
   for (byte i = 0; i < SEQUENCES; i++) sequenceNames[i][0] = '\0';
@@ -2035,6 +2262,7 @@ void eeprom_update_globals()
   eeprom_update_sta_wifi_credentials(wifiSSID, wifiPassword);
   eeprom_update_ap_wifi_credentials(ssidSoftAP, passwordSoftAP);
   eeprom_update_login_credentials(httpUsername, httpPassword);
+  eeprom_update_wled_address(wledAddress);
   eeprom_update_theme(theme);
   eeprom_update_current_profile(currentProfile);
   eeprom_update_screen_saver(screenSaverTimeout);
@@ -2082,6 +2310,7 @@ void eeprom_initialize()
   eeprom_update_sta_wifi_credentials();
   eeprom_update_ap_wifi_credentials();
   eeprom_update_login_credentials();
+  eeprom_update_wled_address();
   eeprom_update_theme();
   eeprom_update_current_profile();
   eeprom_update_screen_saver();

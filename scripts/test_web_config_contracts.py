@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB_CONFIG = ROOT / "src" / "WebConfigAsync.h"
 CONFIG_H = ROOT / "src" / "Config.h"
 PEDALINO_H = ROOT / "src" / "Pedalino.h"
+CONTROLLER_H = ROOT / "src" / "Controller.h"
+UDP_MIDI_IN_H = ROOT / "src" / "UdpMidiIn.h"
+WLED_HTTP_H = ROOT / "src" / "WLEDHttp.h"
 SCHEMA_JSON = ROOT / "data" / "schema.json"
 
 
@@ -166,12 +169,69 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertNotIn("data[len] = 0", self.web_config)
         self.assertNotIn("controller_virtual_control_event(controlNumber", self.web_config)
 
+    def test_wled_web_fields_are_rendered_and_saved_with_same_contract(self) -> None:
+        rendered_fields = [
+            "name='wledAddress'",
+            "name='wledcommand",
+            "name='wledintensity",
+            "name='act-wled-command-",
+            "name='act-wled-value-",
+            "name='act-wled-speed-",
+            "name='act-wled-intensity-",
+            "name='act-wled-color-",
+        ]
+        post_fields = [
+            'request->arg("wledAddress")',
+            'request->arg(String("wledcommand")',
+            'request->arg(String("wledintensity")',
+            'request->arg(String("act-wled-command-")',
+            'request->arg(String("act-wled-value-")',
+            'request->arg(String("act-wled-speed-")',
+            'request->arg(String("act-wled-intensity-")',
+            'request->arg(String("act-wled-color-")',
+        ]
+
+        for field in rendered_fields:
+            with self.subTest(field=field):
+                self.assertIn(field, self.web_config)
+
+        for field in post_fields:
+            with self.subTest(field=field):
+                self.assertIn(field, self.web_config)
+
+    def test_incoming_actions_page_trims_large_editor_sections(self) -> None:
+        checkpoints = [
+            (
+                'page += F("<h6 class=\'mb-2\'>Actions</h6>");',
+                "if (bankTriggers[i].actionCount == 0)",
+            ),
+            (
+                'page += F("</select></div>");\n\n      page += F("<div class=\'col-12 col-md-6 col-lg-4\' id=\'inLedGroup");',
+                'page += F("<div class=\'col-6 col-md-3 col-lg-2\' id=\'inSlotGroup");',
+            ),
+            (
+                'page += F("<div class=\'col-12 col-lg-8\' id=\'inWLEDGroup");',
+                'page += F("<div class=\'col-12 col-md-2\'>");',
+            ),
+        ]
+
+        for start, end in checkpoints:
+            with self.subTest(start=start):
+                start_index = self.web_config.index(start) + len(start)
+                end_index = self.web_config.index(end, start_index)
+                section = self.web_config[start_index:end_index]
+                self.assertIn("if (trim_page(start, len)) return;", section)
+
 
 class ConfigFixtureContractTest(unittest.TestCase):
     def setUp(self) -> None:
         self.schema = json.loads(read_text(SCHEMA_JSON))
         self.config_h = read_text(CONFIG_H)
         self.pedalino_h = read_text(PEDALINO_H)
+        self.controller_h = read_text(CONTROLLER_H)
+        self.udp_midi_in_h = read_text(UDP_MIDI_IN_H)
+        self.web_config = read_text(WEB_CONFIG)
+        self.wled_http_h = read_text(WLED_HTTP_H)
 
     def schema_node(self, *path: str) -> object:
         node = self.schema
@@ -244,6 +304,85 @@ class ConfigFixtureContractTest(unittest.TestCase):
         self.assertIn('preferences.remove("InTrigCnt")', self.config_h)
         self.assertIn('preferences.getUChar("InTrigCnt")', self.config_h)
         self.assertIn('preferences.getBytes("InTriggers"', self.config_h)
+
+    def test_wled_globals_schema_config_and_web_contract(self) -> None:
+        globals_schema = self.schema_node("properties", "Globals", "items", "properties")
+        wled_schema = globals_schema["WLEDAddress"]
+
+        self.assertEqual("string", wled_schema["type"])
+        self.assertEqual(64, wled_schema["maxLength"])
+        self.assertIn('jo["WLEDAddress"]', self.config_h)
+        self.assertIn('wledAddress', self.config_h)
+        self.assertIn('preferences.putString("WLED Address"', self.config_h)
+        self.assertIn('preferences.getString("WLED Address"', self.config_h)
+        self.assertIn("eeprom_update_wled_address", self.config_h)
+
+    def test_wled_interface_contract_and_legacy_schema(self) -> None:
+        interfaces = define_value(self.pedalino_h, "INTERFACES")
+        ped_wled = define_value(self.pedalino_h, "PED_WLED")
+        interfaces_schema = self.schema_node("properties", "Interfaces")
+        interface_id_schema = self.schema_node("properties", "Interfaces", "items", "properties", "Interface")
+
+        self.assertEqual(7, interfaces)
+        self.assertEqual(6, ped_wled)
+        self.assertEqual(6, interfaces_schema["minItems"])
+        self.assertEqual(7, interfaces_schema["maxItems"])
+        self.assertIn(7, interface_id_schema["enum"])
+        self.assertIn('"WLED       ", PED_DISABLE, PED_DISABLE, PED_DISABLE, PED_DISABLE', self.pedalino_h)
+        self.assertIn("interfaces[PED_WLED].midiOut   = PED_DISABLE;", self.config_h)
+        self.assertIn("interfaces[PED_WLED].midiOut", self.wled_http_h)
+        self.assertIn("PED_WLED", self.web_config)
+        self.assertIn(">Enabled</label>", self.web_config)
+        self.assertIn("wled_clear_queue();", self.web_config)
+        self.assertIn("constrain(msg.getInt(0), 0, INTERFACES - 1)", self.udp_midi_in_h)
+
+    def test_wled_schema_accepts_action_sequence_and_incoming_objects(self) -> None:
+        actions = self.schema_node("properties", "Actions")
+        sequences = self.schema_node("properties", "Sequences")
+        incoming = self.schema_node("properties", "IncomingTriggers")
+
+        action_props = actions["items"]["properties"]
+        sequence_props = sequences["items"]["properties"]
+        incoming_action_props = incoming["items"]["properties"]["Actions"]["items"]["properties"]
+
+        self.assertIn("WLED", action_props["Message"]["enum"])
+        self.assertIn("WLED", sequence_props["Message"]["enum"])
+        self.assertIn("WLED", incoming_action_props["Action"]["enum"])
+        self.assertIn("WLED", action_props)
+        self.assertIn("WLED", sequence_props)
+        self.assertIn("WLED", incoming_action_props)
+
+        action_fixture = {
+            "Bank": 1,
+            "Control": 4,
+            "Event": "Press",
+            "Message": "WLED",
+            "WLED": {"Command": "Preset", "Value": 7},
+        }
+        sequence_fixture = {
+            "Sequence": 1,
+            "Step": 2,
+            "Message": "WLED",
+            "WLED": {"Command": "Effect", "Value": 9, "Speed": 128, "Intensity": 127},
+        }
+        incoming_fixture = {
+            "TriggerType": "Control Change",
+            "Channel": 17,
+            "Number": 64,
+            "ValueMode": "Any",
+            "Value": 0,
+            "Actions": [{"Action": "WLED", "WLED": {"Command": "Solid Color", "Color": "#0066ff"}}],
+        }
+
+        assert_schema_instance(actions, [action_fixture])
+        assert_schema_instance(sequences, [sequence_fixture])
+        assert_schema_instance(incoming, [incoming_fixture])
+        self.assertIn('jo["WLED"].to<JsonObject>()', self.config_h)
+        self.assertIn('wled_config_from_json(jo["WLED"]', self.config_h)
+
+    def test_wled_sequence_steps_skip_local_led_update_contract(self) -> None:
+        self.assertIn("sequences[channel][s].midiMessage != PED_ACTION_WLED", self.controller_h)
+        self.assertIn("sequences[channel][step].midiMessage != PED_ACTION_WLED", self.controller_h)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 #define _PEDALINO_CORE_LOGIC_H
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 namespace pedalino {
@@ -27,6 +28,14 @@ struct HardwareControlMapping {
   const char* reason;
 };
 
+enum WledCommand {
+  WLED_COMMAND_POWER = 1,
+  WLED_COMMAND_PRESET = 2,
+  WLED_COMMAND_BRIGHTNESS = 3,
+  WLED_COMMAND_SOLID_COLOR = 4,
+  WLED_COMMAND_EFFECT = 5,
+};
+
 inline long map2(long x, long in_min, long in_max, long out_min, long out_max)
 {
   const long dividend = out_max - out_min;
@@ -44,6 +53,68 @@ inline unsigned int clamp_unsigned(unsigned int value, unsigned int minValue, un
   if (value < minValue) return minValue;
   if (value > maxValue) return maxValue;
   return value;
+}
+
+inline unsigned int clamp_int_to_unsigned(int value, unsigned int minValue, unsigned int maxValue)
+{
+  if (value < 0) return minValue;
+  return clamp_unsigned((unsigned int)value, minValue, maxValue);
+}
+
+inline bool write_json_payload(char* out, size_t outSize, const char* format, unsigned int a = 0, unsigned int b = 0, unsigned int c = 0)
+{
+  if (out == 0 || outSize == 0 || format == 0) return false;
+
+  const int written = std::snprintf(out, outSize, format, a, b, c);
+  if (written < 0 || (size_t)written >= outSize) {
+    out[0] = 0;
+    return false;
+  }
+  return true;
+}
+
+inline bool build_wled_json_payload(int command,
+                                    int value,
+                                    int speed,
+                                    int intensity,
+                                    unsigned int color,
+                                    char* out,
+                                    size_t outSize)
+{
+  if (out == 0 || outSize == 0) return false;
+  out[0] = 0;
+
+  switch (command) {
+    case WLED_COMMAND_POWER:
+      if (value == 0) return write_json_payload(out, outSize, "{\"on\":false}");
+      if (value == 1) return write_json_payload(out, outSize, "{\"on\":true}");
+      if (value == 2) return write_json_payload(out, outSize, "{\"on\":\"t\"}");
+      return false;
+
+    case WLED_COMMAND_PRESET:
+      return write_json_payload(out, outSize, "{\"ps\":%u}", clamp_int_to_unsigned(value, 1, 250));
+
+    case WLED_COMMAND_BRIGHTNESS:
+      return write_json_payload(out, outSize, "{\"bri\":%u}", clamp_int_to_unsigned(value, 1, 255));
+
+    case WLED_COMMAND_SOLID_COLOR: {
+      const unsigned int red = (color >> 16) & 0xff;
+      const unsigned int green = (color >> 8) & 0xff;
+      const unsigned int blue = color & 0xff;
+      return write_json_payload(out, outSize, "{\"seg\":[{\"fx\":0,\"col\":[[%u,%u,%u]]}]}", red, green, blue);
+    }
+
+    case WLED_COMMAND_EFFECT:
+      return write_json_payload(out,
+                                outSize,
+                                "{\"seg\":[{\"fx\":%u,\"sx\":%u,\"ix\":%u}]}",
+                                clamp_int_to_unsigned(value, 0, 255),
+                                clamp_int_to_unsigned(speed, 0, 255),
+                                clamp_int_to_unsigned(intensity, 0, 255));
+
+    default:
+      return false;
+  }
 }
 
 inline unsigned int map_analog_value(unsigned int value,

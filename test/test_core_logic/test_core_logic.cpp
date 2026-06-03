@@ -49,6 +49,7 @@ const int kPedAnalogMomentary = 11;
 const int kPressSingle = 1;
 const int kPressDouble = 2;
 const int kPressLong = 4;
+const unsigned int kWledBlue = 0x0066ff;
 
 struct TestAction {
   int targetAction;
@@ -483,6 +484,42 @@ void test_hardware_display_label_prefers_active_tag_then_fallback()
   TEST_ASSERT_EQUAL_STRING("Control 1", pedalino::hardware_display_label(nullptr, "PLAY", false, "Control 1"));
 }
 
+void test_wled_payload_builds_power_commands()
+{
+  char payload[96];
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_POWER, 0, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"on\":false}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_POWER, 1, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"on\":true}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_POWER, 2, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"on\":\"t\"}", payload);
+}
+
+void test_wled_payload_builds_preset_brightness_and_color()
+{
+  char payload[96];
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_PRESET, 7, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"ps\":7}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_BRIGHTNESS, 180, 0, 0, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"bri\":180}", payload);
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_SOLID_COLOR, 0, 0, 0, kWledBlue, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"seg\":[{\"fx\":0,\"col\":[[0,102,255]]}]}", payload);
+}
+
+void test_wled_payload_builds_effect_with_speed_and_intensity()
+{
+  char payload[96];
+
+  TEST_ASSERT_TRUE(pedalino::build_wled_json_payload(pedalino::WLED_COMMAND_EFFECT, 9, 128, 127, 0, payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_STRING("{\"seg\":[{\"fx\":9,\"sx\":128,\"ix\":127}]}", payload);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -519,5 +556,8 @@ int main(int argc, char** argv)
   RUN_TEST(test_hardware_control_mapping_rejects_non_momentary_mode);
   RUN_TEST(test_hardware_press_mode_requires_single_press_events);
   RUN_TEST(test_hardware_display_label_prefers_active_tag_then_fallback);
+  RUN_TEST(test_wled_payload_builds_power_commands);
+  RUN_TEST(test_wled_payload_builds_preset_brightness_and_color);
+  RUN_TEST(test_wled_payload_builds_effect_with_speed_and_intensity);
   return UNITY_END();
 }
