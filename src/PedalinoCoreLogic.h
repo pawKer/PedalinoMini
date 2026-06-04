@@ -364,6 +364,15 @@ inline const char* hardware_display_label(const char* tagOff,
   if (selected != 0 && selected[0] != 0) return selected;
   return fallback == 0 ? "" : fallback;
 }
+inline const char* top_bar_label(const char* fallback,
+                                 const char* temporary,
+                                 unsigned long now,
+                                 unsigned long temporaryUntil)
+{
+  if (temporary != 0 && temporary[0] != 0 && now < temporaryUntil) return temporary;
+  return fallback == 0 ? "" : fallback;
+}
+
 
 inline bool tap_tempo_timeout(unsigned long lastTap, unsigned long currentTime, unsigned long timeoutMs)
 {

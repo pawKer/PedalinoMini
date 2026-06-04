@@ -24,6 +24,8 @@
 19. `479d892` - Hardware test sequence LEDs and slot inversion
 20. `4c3c352` - Hardware test cached LED colors
 21. `43ef340` - Hardware test LED color fallback
+22. `67bfd30` - Hardware test LED preview cleanup
+23. `TBD` - Wi-Fi IP top-bar display
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -176,10 +178,22 @@
 - Size note for `lilygo-t-display-s3`: final branch build is `2,459,969` bytes flash / `107,600` bytes RAM, leaving `1,078,975` bytes free in the `3,538,944` byte OTA app slot.
 - Validation: `python -B -m unittest scripts.test_web_config_contracts.WebConfigContractTest.test_hardware_page_exposes_led_and_slot_visual_state`, `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python -B scripts\validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, `pio run -e lilygo-t-display-s3`, and `pio run -e lilygo-t-display-s3 -t buildfs`.
 
+### `67bfd30` - Hardware test LED preview cleanup
+- Removed the stale helper that made cached physical LED colors look authoritative in the `/hardware` preview path.
+- The hardware page now directly prefers the configured action, sequence, or slot fallback color, then falls back to cached physical LED color only when no configured preview color exists.
+- Compatibility note: saved configuration, physical LED output, controller dispatch, MIDI output, and sequence execution are unchanged; this only simplifies `/hardware` JSON/rendering behavior.
+- Size note for `lilygo-t-display-s3`: cleanup build is `2,460,557` bytes flash / `107,624` bytes RAM, leaving `1,078,387` bytes free in the `3,538,944` byte OTA app slot.
+- Validation: `python -B -m unittest scripts.test_web_config_contracts.WebConfigContractTest.test_hardware_page_exposes_led_and_slot_visual_state`, `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python -B scripts\validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `pio run -e lilygo-t-display-s3`.
+
+### `TBD` - Wi-Fi IP top-bar display
+- Added a timed S3 top-bar label that shows the STA IP address for 5 seconds after Wi-Fi receives an IP, then returns to the normal bank label.
+- The existing Wi-Fi/profile/battery top-bar icons remain visible while the IP label is shown; AP mode and saved configuration are unchanged.
+- Compatibility note: no persisted config or Web UI schema changes.
+- Validation: `$env:TMPDIR = "C:\tmp"; pio test -e native` (35 Unity tests passed, 2026-06-04) and `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, RAM `107,624` bytes, flash `2,460,425` bytes, `1,078,519` bytes free in the OTA app slot).
 
 ## Validation
-- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-04, Hardware test LED color fallback; RAM `107,600` bytes, flash `2,459,969` bytes, `1,078,975` bytes free in the OTA app slot).
+- Latest verified build: `$env:TMPDIR = "C:\tmp"; pio run -e lilygo-t-display-s3` (success, 2026-06-04, Wi-Fi IP top-bar display; RAM `107,624` bytes, flash `2,460,425` bytes, `1,078,519` bytes free in the OTA app slot).
 - Latest filesystem build: `pio run -e lilygo-t-display-s3 -t buildfs` (success, 2026-06-04, Hardware test LED color fallback).
-- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (34 Unity tests passed, 2026-06-04).
+- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (35 Unity tests passed, 2026-06-04).
 - Latest local Python validation: `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (26 tests passed, 2026-06-04) and `python -B scripts\validate_config_surfaces.py` (success, 2026-06-04).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.

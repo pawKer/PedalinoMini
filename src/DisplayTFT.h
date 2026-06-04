@@ -484,21 +484,22 @@ void topOverlay()
     }
 
 #if defined(ARDUINO_LILYGO_T_DISPLAY_S3)
-    // Keep top status icons and profile badge, and show current bank name in the remaining top-bar area.
+    // Keep top status icons and profile badge, and show the bank name or timed IP label in the remaining area.
     String bankLabel = banknames[currentBank][0] == 0
                      ? String("Bank ") + (currentBank > 9 ? "" : "0") + String(currentBank)
                      : String(banknames[currentBank]);
     bankLabel.replace(String("##"), String(currentBank));
+    String topBarLabel = pedalino::top_bar_label(bankLabel.c_str(), wifiIpTopBarLabel, millis(), wifiIpTopBarUntil);
     const int bankLabelLeft  = 80;
     const int bankLabelRight = display.width() - 54;
     const int bankLabelWidth = bankLabelRight - bankLabelLeft;
     top.setFreeFont(&FreeSans9pt7b);
-    while (bankLabel.length() > 0 && top.textWidth(bankLabel) > bankLabelWidth) {
-      bankLabel.remove(bankLabel.length() - 1);
+    while (topBarLabel.length() > 0 && top.textWidth(topBarLabel) > bankLabelWidth) {
+      topBarLabel.remove(topBarLabel.length() - 1);
     }
     top.setTextColor(TFT_INDEX_WHITE, TFT_INDEX_BLACK);
     top.setTextDatum(MC_DATUM);
-    top.drawString(bankLabel, bankLabelLeft + bankLabelWidth / 2, 11);
+    top.drawString(topBarLabel, bankLabelLeft + bankLabelWidth / 2, 11);
 #endif
   }
 

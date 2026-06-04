@@ -203,16 +203,22 @@ void WiFiEvent(WiFiEvent_t event)
       DPRINT("Gataway IP  : %s\n", WiFi.gatewayIP().toString().c_str());
       DPRINT("DNS 1       : %s\n", WiFi.dnsIP(0).toString().c_str());
       DPRINT("DNS 2       : %s\n", WiFi.dnsIP(1).toString().c_str());
+      snprintf(wifiIpTopBarLabel, sizeof(wifiIpTopBarLabel), "IP %s", WiFi.localIP().toString().c_str());
+      wifiIpTopBarUntil = millis() + WIFI_IP_TOP_BAR_DISPLAY_MS;
       start_services();
       break;
 
     case SYSTEM_EVENT_STA_LOST_IP:
       DPRINT("SYSTEM_EVENT_STA_LOST_IP\n");
+      wifiIpTopBarLabel[0] = 0;
+      wifiIpTopBarUntil = 0;
       stop_services();
       break;
 
     case SYSTEM_EVENT_STA_DISCONNECTED:
       DPRINT("SYSTEM_EVENT_STA_DISCONNECTED\n");
+      wifiIpTopBarLabel[0] = 0;
+      wifiIpTopBarUntil = 0;
       stop_services();
       break;
 

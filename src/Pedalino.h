@@ -43,6 +43,8 @@ __________           .___      .__  .__                 _____  .__       .__    
 #define MAXBANKNAME      16
 #define MAXSEQUENCENAME  16
 #define MAXWLEDADDRESS   64
+#define WIFI_IP_TOP_BAR_DISPLAY_MS 5000
+#define WIFI_IP_TOP_BAR_LABEL_LENGTH 24
 #define INCOMING_TRIGGERS_MAX        64
 #define INCOMING_TRIGGER_ACTIONS_MAX 8
 
@@ -588,6 +590,8 @@ String wifiSSID     = "";
 String wifiPassword = "";
 String wledAddress  = "";
 int    wifiLevel    = 0;
+char   wifiIpTopBarLabel[WIFI_IP_TOP_BAR_LABEL_LENGTH] = "";
+unsigned long wifiIpTopBarUntil = 0;
 
 uint16_t  batteryVoltage = 4200;  // mV
 

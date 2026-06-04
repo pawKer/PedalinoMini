@@ -492,6 +492,17 @@ void test_hardware_display_label_prefers_active_tag_then_fallback()
   TEST_ASSERT_EQUAL_STRING("Control 1", pedalino::hardware_display_label(nullptr, "PLAY", false, "Control 1"));
 }
 
+void test_top_bar_label_uses_temporary_label_until_timeout()
+{
+  TEST_ASSERT_EQUAL_STRING("IP 192.168.1.42",
+                           pedalino::top_bar_label("Bank 02", "IP 192.168.1.42", 1000, 6000));
+  TEST_ASSERT_EQUAL_STRING("Bank 02",
+                           pedalino::top_bar_label("Bank 02", "IP 192.168.1.42", 6000, 6000));
+  TEST_ASSERT_EQUAL_STRING("Bank 02",
+                           pedalino::top_bar_label("Bank 02", "", 1000, 6000));
+}
+
+
 void test_wled_payload_builds_power_commands()
 {
   char payload[96];
@@ -565,6 +576,7 @@ int main(int argc, char** argv)
   RUN_TEST(test_hardware_control_mapping_rejects_non_momentary_mode);
   RUN_TEST(test_hardware_press_mode_requires_single_press_events);
   RUN_TEST(test_hardware_display_label_prefers_active_tag_then_fallback);
+  RUN_TEST(test_top_bar_label_uses_temporary_label_until_timeout);
   RUN_TEST(test_wled_payload_builds_power_commands);
   RUN_TEST(test_wled_payload_builds_preset_brightness_and_color);
   RUN_TEST(test_wled_payload_builds_effect_with_speed_and_intensity);
