@@ -195,6 +195,7 @@ class WebConfigContractTest(unittest.TestCase):
         self.assertIn("hardware_action_active(ledAction, active)", self.web_config)
         self.assertNotIn("hardware_action_active(ledAction, mappedActive)", self.web_config)
         self.assertIn("hardware_led_preview_color", self.web_config)
+        self.assertIn("hardware_led_preview_color(fallbackColor, hardware_rgb_color(cached))", self.web_config)
         self.assertIn("hardware_button_led_for_action", self.web_config)
         self.assertIn("lastLedColor[currentBank][led]", self.web_config)
         self.assertIn("hardware_rgb_color(cached)", self.web_config)
