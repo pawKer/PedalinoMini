@@ -188,17 +188,19 @@ String hardware_css_color(pedalino::RgbColor color)
 String hardware_led_css_color(byte led, pedalino::RgbColor fallbackColor)
 {
   if (led >= LEDS) return F("#000000");
+  if (pedalino::rgb_color_active(fallbackColor)) return hardware_css_color(fallbackColor);
 
   const CRGB& cached = lastLedColor[currentBank][led];
-  return hardware_css_color(pedalino::hardware_led_preview_color(fallbackColor, hardware_rgb_color(cached)));
+  return hardware_css_color(hardware_rgb_color(cached));
 }
 
 bool hardware_led_active(byte led, bool fallbackActive, pedalino::RgbColor fallbackColor)
 {
   if (led >= LEDS) return false;
+  if (fallbackActive && pedalino::rgb_color_active(fallbackColor)) return true;
 
   const CRGB& cached = lastLedColor[currentBank][led];
-  return pedalino::hardware_led_preview_active(hardware_rgb_color(cached), fallbackActive, fallbackColor);
+  return pedalino::rgb_color_active(hardware_rgb_color(cached));
 }
 
 byte hardware_resolve_sequence_led(byte sequenceLed, byte fallbackLed)
