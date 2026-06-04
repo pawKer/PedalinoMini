@@ -500,6 +500,12 @@ bool hardware_action_active(action* act, bool mappedActive)
   return mappedActive;
 }
 
+pedalino::RgbColor hardware_action_slot_border_color(action* act)
+{
+  if (act == nullptr || act->slot >= SLOTS) return {0, 0, 0};
+  return hardware_rgb_color(slotBorderColor[act->slot]);
+}
+
 String hardware_action_label(action* act, bool active, const String& fallback, bool displaySlotMode = false)
 {
   if (act == nullptr) return fallback;
@@ -558,7 +564,11 @@ String hardware_state_json()
     const bool ledActive = hardware_action_active(ledAction, mappedActive);
     byte buttonLed = controls[i].led;
     pedalino::RgbColor fallbackColor = {0, 0, 0};
-    const bool fallbackActive = hardware_action_led_preview(ledAction, ledActive, controls[i].led, buttonLed, fallbackColor) && ledActive;
+    bool fallbackActive = hardware_action_led_preview(ledAction, ledActive, controls[i].led, buttonLed, fallbackColor) && ledActive;
+    if (ledActive && !pedalino::rgb_color_active(fallbackColor)) {
+      fallbackColor = hardware_action_slot_border_color(ledAction);
+      fallbackActive = pedalino::rgb_color_active(fallbackColor);
+    }
     if (ledAction == nullptr) buttonLed = hardware_button_led_for_action(bestAction, controls[i].led);
     const String fallback = String("Control ") + String(i + 1);
     json += F("{\"id\":");
