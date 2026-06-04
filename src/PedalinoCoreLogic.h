@@ -258,6 +258,21 @@ inline RgbColor swap_rgb_order(RgbColor color,
   return {0, 0, 0};
 }
 
+inline bool rgb_color_active(RgbColor color)
+{
+  return color.red != 0 || color.green != 0 || color.blue != 0;
+}
+
+inline RgbColor hardware_led_preview_color(RgbColor cachedColor, RgbColor fallbackColor)
+{
+  return rgb_color_active(cachedColor) ? cachedColor : fallbackColor;
+}
+
+inline bool hardware_led_preview_active(RgbColor cachedColor, bool fallbackActive, RgbColor fallbackColor)
+{
+  return rgb_color_active(cachedColor) || (fallbackActive && rgb_color_active(fallbackColor));
+}
+
 inline int resolve_hardware_sequence_led(int sequenceLed,
                                          int fallbackLed,
                                          int disabledLed,

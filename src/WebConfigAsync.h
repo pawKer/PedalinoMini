@@ -163,28 +163,42 @@ void hardware_append_json_color(String& json, uint32_t color)
   hardware_append_json_string(json, String(colorString));
 }
 
-String hardware_led_css_color(byte led)
+pedalino::RgbColor hardware_rgb_color(const CRGB& color)
 {
-  if (led >= LEDS) return F("#000000");
+  return {color.red, color.green, color.blue};
+}
 
-  const CRGB& cached = lastLedColor[currentBank][led];
+pedalino::RgbColor hardware_rgb_color(uint32_t color)
+{
+  return {(int)((color >> 16) & 0xff), (int)((color >> 8) & 0xff), (int)(color & 0xff)};
+}
 
+String hardware_css_color(pedalino::RgbColor color)
+{
   char colorString[8];
   snprintf(colorString,
            sizeof(colorString),
            "#%02x%02x%02x",
-           (unsigned int)cached.red,
-           (unsigned int)cached.green,
-           (unsigned int)cached.blue);
+           (unsigned int)color.red,
+           (unsigned int)color.green,
+           (unsigned int)color.blue);
   return String(colorString);
 }
 
-bool hardware_led_active(byte led)
+String hardware_led_css_color(byte led, pedalino::RgbColor fallbackColor)
+{
+  if (led >= LEDS) return F("#000000");
+
+  const CRGB& cached = lastLedColor[currentBank][led];
+  return hardware_css_color(pedalino::hardware_led_preview_color(hardware_rgb_color(cached), fallbackColor));
+}
+
+bool hardware_led_active(byte led, bool fallbackActive, pedalino::RgbColor fallbackColor)
 {
   if (led >= LEDS) return false;
 
   const CRGB& cached = lastLedColor[currentBank][led];
-  return cached.red != 0 || cached.green != 0 || cached.blue != 0;
+  return pedalino::hardware_led_preview_active(hardware_rgb_color(cached), fallbackActive, fallbackColor);
 }
 
 byte hardware_resolve_sequence_led(byte sequenceLed, byte fallbackLed)
@@ -223,6 +237,78 @@ byte hardware_sequence_step_led(byte sequenceIndex, byte stepIndex, byte fallbac
   return hardware_resolve_sequence_led(sequences[sequenceIndex][stepIndex].led, fallbackLed);
 }
 
+bool hardware_sequence_first_led_preview(byte sequenceIndex,
+                                         byte fallbackLed,
+                                         byte& led,
+                                         pedalino::RgbColor& color)
+{
+  if (sequenceIndex >= SEQUENCES) return false;
+
+  byte firstLed = LEDS;
+  pedalino::RgbColor firstColor = {0, 0, 0};
+  byte firstNonBlackLed = LEDS;
+  pedalino::RgbColor firstNonBlackColor = {0, 0, 0};
+
+  for (byte step = 0; step < STEPS; step++) {
+    if (sequences[sequenceIndex][step].midiMessage == PED_EMPTY ||
+        sequences[sequenceIndex][step].midiMessage == PED_ACTION_WLED) {
+      continue;
+    }
+
+    const byte resolvedLed = hardware_resolve_sequence_led(sequences[sequenceIndex][step].led, fallbackLed);
+    if (resolvedLed >= LEDS) continue;
+
+    const pedalino::RgbColor stepColor = hardware_rgb_color(sequences[sequenceIndex][step].color);
+    if (sequences[sequenceIndex][step].midiMessage == PED_ACTION_LED_COLOR &&
+        pedalino::rgb_color_active(stepColor)) {
+      led = resolvedLed;
+      color = stepColor;
+      return true;
+    }
+
+    if (firstLed >= LEDS) {
+      firstLed = resolvedLed;
+      firstColor = stepColor;
+    }
+    if (firstNonBlackLed >= LEDS && pedalino::rgb_color_active(stepColor)) {
+      firstNonBlackLed = resolvedLed;
+      firstNonBlackColor = stepColor;
+    }
+  }
+
+  if (firstNonBlackLed < LEDS) {
+    led = firstNonBlackLed;
+    color = firstNonBlackColor;
+    return true;
+  }
+  if (firstLed < LEDS) {
+    led = firstLed;
+    color = firstColor;
+    return true;
+  }
+
+  return false;
+}
+
+bool hardware_sequence_step_led_preview(byte sequenceIndex,
+                                        byte stepIndex,
+                                        byte fallbackLed,
+                                        byte& led,
+                                        pedalino::RgbColor& color)
+{
+  if (sequenceIndex >= SEQUENCES || stepIndex >= STEPS) return false;
+  if (sequences[sequenceIndex][stepIndex].midiMessage == PED_EMPTY ||
+      sequences[sequenceIndex][stepIndex].midiMessage == PED_ACTION_WLED) {
+    return false;
+  }
+
+  led = hardware_resolve_sequence_led(sequences[sequenceIndex][stepIndex].led, fallbackLed);
+  if (led >= LEDS) return false;
+
+  color = hardware_rgb_color(sequences[sequenceIndex][stepIndex].color);
+  return true;
+}
+
 byte hardware_button_led_for_action(action* act, byte fallbackLed)
 {
   if (act == nullptr) return fallbackLed;
@@ -240,6 +326,60 @@ byte hardware_button_led_for_action(action* act, byte fallbackLed)
 
     default:
       return actionLed;
+  }
+}
+
+bool hardware_action_led_preview(action* act,
+                                 bool active,
+                                 byte fallbackLed,
+                                 byte& led,
+                                 pedalino::RgbColor& color)
+{
+  color = {0, 0, 0};
+  led = hardware_button_led_for_action(act, fallbackLed);
+  if (act == nullptr || led >= LEDS) return false;
+
+  switch (act->midiMessage) {
+    case PED_SEQUENCE:
+      if (act->midiChannel < 1 || act->midiChannel > SEQUENCES) return false;
+      return hardware_sequence_first_led_preview(act->midiChannel - 1, led, led, color);
+
+    case PED_SEQUENCE_STEP_BY_STEP_FWD:
+    case PED_SEQUENCE_STEP_BY_STEP_REV:
+      if (act->midiChannel < 1 || act->midiChannel > SEQUENCES) return false;
+      return hardware_sequence_step_led_preview(act->midiChannel - 1, constrain(act->midiCode, 0, STEPS - 1), led, led, color);
+
+    case PED_ACTION_LED_COLOR:
+      color = hardware_rgb_color(act->color0);
+      return pedalino::rgb_color_active(color);
+
+    case PED_EMPTY:
+    case PED_ACTION_BANK:
+    case PED_ACTION_BANK_PLUS:
+    case PED_ACTION_BANK_MINUS:
+    case PED_ACTION_PROFILE_PLUS:
+    case PED_ACTION_PROFILE_MINUS:
+    case PED_ACTION_DEVICE_INFO:
+    case PED_ACTION_SET_SLOT_STATE:
+    case PED_ACTION_WLED:
+    case PED_ACTION_SCAN:
+    case PED_ACTION_POWER_ON_OFF:
+      return false;
+
+    default: {
+      const pedalino::RgbColor offColor = hardware_rgb_color(act->color0);
+      const pedalino::RgbColor onColor = hardware_rgb_color(act->color1);
+      if (active && pedalino::rgb_color_active(onColor)) {
+        color = onColor;
+      }
+      else if (!active && pedalino::rgb_color_active(offColor)) {
+        color = offColor;
+      }
+      else {
+        color = pedalino::rgb_color_active(onColor) ? onColor : offColor;
+      }
+      return pedalino::rgb_color_active(color);
+    }
   }
 }
 
@@ -275,6 +415,39 @@ action* hardware_best_action_for_control(byte controlIndex)
         if (best == nullptr || score > bestScore) {
           best = act;
           bestScore = score;
+        }
+      }
+      act = act->next;
+    }
+  }
+
+  return best;
+}
+
+action* hardware_best_led_action_for_control(byte controlIndex, bool active, byte fallbackLed)
+{
+  action* best = nullptr;
+  byte bestScore = 0;
+
+  for (byte pass = 0; pass < 2; pass++) {
+    if (pass == 1 && currentBank == 0) break;
+    action* act = actions[pass == 0 ? currentBank : 0];
+    while (act != nullptr) {
+      if (act->control == controlIndex) {
+        byte led = fallbackLed;
+        pedalino::RgbColor color = {0, 0, 0};
+        if (hardware_action_led_preview(act, active, fallbackLed, led, color)) {
+          byte score = pedalino::rgb_color_active(color) ? 2 : 1;
+          if (act->midiMessage == PED_ACTION_LED_COLOR ||
+              act->midiMessage == PED_SEQUENCE ||
+              act->midiMessage == PED_SEQUENCE_STEP_BY_STEP_FWD ||
+              act->midiMessage == PED_SEQUENCE_STEP_BY_STEP_REV) {
+            score += 2;
+          }
+          if (best == nullptr || score > bestScore) {
+            best = act;
+            bestScore = score;
+          }
         }
       }
       act = act->next;
@@ -368,7 +541,12 @@ String hardware_state_json()
     const pedalino::HardwareControlMapping mapping = controller_virtual_control_mapping(i);
     const bool active = mapping.supported && currentMIDIValue[currentBank][mapping.pedal][mapping.button] > 0;
     action* bestAction = hardware_best_action_for_control(i);
-    byte buttonLed = hardware_button_led_for_action(bestAction, controls[i].led);
+    action* ledAction = hardware_best_led_action_for_control(i, active, controls[i].led);
+    if (ledAction == nullptr) ledAction = bestAction;
+    byte buttonLed = controls[i].led;
+    pedalino::RgbColor fallbackColor = {0, 0, 0};
+    const bool fallbackActive = hardware_action_led_preview(ledAction, active, controls[i].led, buttonLed, fallbackColor) && active;
+    if (ledAction == nullptr) buttonLed = hardware_button_led_for_action(bestAction, controls[i].led);
     const String fallback = String("Control ") + String(i + 1);
     json += F("{\"id\":");
     json += (i + 1);
@@ -381,9 +559,9 @@ String hardware_state_json()
     json += F(",\"led\":");
     json += buttonLed < LEDS ? buttonLed + 1 : 0;
     json += F(",\"ledColor\":");
-    hardware_append_json_string(json, hardware_led_css_color(buttonLed));
+    hardware_append_json_string(json, hardware_led_css_color(buttonLed, fallbackColor));
     json += F(",\"ledActive\":");
-    json += hardware_led_active(buttonLed) ? F("true") : F("false");
+    json += hardware_led_active(buttonLed, fallbackActive, fallbackColor) ? F("true") : F("false");
     json += "}";
   }
 

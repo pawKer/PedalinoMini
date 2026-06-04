@@ -184,9 +184,12 @@ class WebConfigContractTest(unittest.TestCase):
 
     def test_hardware_page_exposes_led_and_slot_visual_state(self) -> None:
         self.assertIn("hardware_led_css_color", self.web_config)
+        self.assertIn("hardware_best_led_action_for_control", self.web_config)
+        self.assertIn("hardware_action_led_preview", self.web_config)
+        self.assertIn("hardware_led_preview_color", self.web_config)
         self.assertIn("hardware_button_led_for_action", self.web_config)
         self.assertIn("lastLedColor[currentBank][led]", self.web_config)
-        self.assertIn("(unsigned int)cached.red", self.web_config)
+        self.assertIn("hardware_rgb_color(cached)", self.web_config)
         self.assertNotIn("unswap_rgb_order({cached.red, cached.green, cached.blue}", self.web_config)
         self.assertIn("PED_SEQUENCE_STEP_BY_STEP_FWD", self.web_config)
         self.assertIn('F(",\\"led\\":")', self.web_config)

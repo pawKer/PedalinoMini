@@ -341,6 +341,32 @@ void test_swap_rgb_order_supports_all_orderings()
   TEST_ASSERT_EQUAL_INT(1, swapped.blue);
 }
 
+void test_hardware_led_preview_color_prefers_live_cache()
+{
+  const pedalino::RgbColor cached = {1, 2, 3};
+  const pedalino::RgbColor fallback = {10, 20, 30};
+
+  const pedalino::RgbColor preview = pedalino::hardware_led_preview_color(cached, fallback);
+
+  TEST_ASSERT_EQUAL_INT(1, preview.red);
+  TEST_ASSERT_EQUAL_INT(2, preview.green);
+  TEST_ASSERT_EQUAL_INT(3, preview.blue);
+}
+
+void test_hardware_led_preview_color_uses_fallback_when_cache_is_black()
+{
+  const pedalino::RgbColor cached = {0, 0, 0};
+  const pedalino::RgbColor fallback = {10, 20, 30};
+
+  const pedalino::RgbColor preview = pedalino::hardware_led_preview_color(cached, fallback);
+
+  TEST_ASSERT_EQUAL_INT(10, preview.red);
+  TEST_ASSERT_EQUAL_INT(20, preview.green);
+  TEST_ASSERT_EQUAL_INT(30, preview.blue);
+  TEST_ASSERT_FALSE(pedalino::hardware_led_preview_active(cached, false, fallback));
+  TEST_ASSERT_TRUE(pedalino::hardware_led_preview_active(cached, true, fallback));
+}
+
 void test_resolve_hardware_sequence_led_handles_default_explicit_and_disabled_leds()
 {
   TEST_ASSERT_EQUAL_INT(4, pedalino::resolve_hardware_sequence_led(255, 4, 10, 255));
@@ -553,6 +579,8 @@ int main(int argc, char** argv)
   RUN_TEST(test_preferred_action_overlay_label_prefers_event_specific_tags);
   RUN_TEST(test_slot_state_from_tags_returns_state_change_or_unchanged);
   RUN_TEST(test_swap_rgb_order_supports_all_orderings);
+  RUN_TEST(test_hardware_led_preview_color_prefers_live_cache);
+  RUN_TEST(test_hardware_led_preview_color_uses_fallback_when_cache_is_black);
   RUN_TEST(test_resolve_hardware_sequence_led_handles_default_explicit_and_disabled_leds);
   RUN_TEST(test_trim_page_decision_skips_prefix_or_finishes_chunk);
   RUN_TEST(test_trim_page_decision_clears_when_start_is_after_current_content);
