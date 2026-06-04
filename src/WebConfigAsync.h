@@ -561,12 +561,15 @@ String hardware_state_json()
     const bool active = hardware_action_active(bestAction, mappedActive);
     action* ledAction = hardware_best_led_action_for_control(i, active, controls[i].led);
     if (ledAction == nullptr) ledAction = bestAction;
-    const bool ledActive = hardware_action_active(ledAction, mappedActive);
+    const bool ledActive = hardware_action_active(ledAction, active);
     byte buttonLed = controls[i].led;
     pedalino::RgbColor fallbackColor = {0, 0, 0};
     bool fallbackActive = hardware_action_led_preview(ledAction, ledActive, controls[i].led, buttonLed, fallbackColor) && ledActive;
     if (ledActive && !pedalino::rgb_color_active(fallbackColor)) {
       fallbackColor = hardware_action_slot_border_color(ledAction);
+      if (!pedalino::rgb_color_active(fallbackColor)) {
+        fallbackColor = hardware_action_slot_border_color(bestAction);
+      }
       fallbackActive = pedalino::rgb_color_active(fallbackColor);
     }
     if (ledAction == nullptr) buttonLed = hardware_button_led_for_action(bestAction, controls[i].led);
