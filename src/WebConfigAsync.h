@@ -489,6 +489,17 @@ bool hardware_action_value(action* act, int& value)
   return true;
 }
 
+bool hardware_action_active(action* act, bool mappedActive)
+{
+  if (act != nullptr &&
+      act->slot < SLOTS &&
+      slotDisplayInitialized[currentBank][act->slot]) {
+    return slotDisplayState[currentBank][act->slot];
+  }
+
+  return mappedActive;
+}
+
 String hardware_action_label(action* act, bool active, const String& fallback, bool displaySlotMode = false)
 {
   if (act == nullptr) return fallback;
@@ -539,13 +550,15 @@ String hardware_state_json()
   for (byte i = 0; i < 6; i++) {
     if (i > 0) json += ",";
     const pedalino::HardwareControlMapping mapping = controller_virtual_control_mapping(i);
-    const bool active = mapping.supported && currentMIDIValue[currentBank][mapping.pedal][mapping.button] > 0;
+    const bool mappedActive = mapping.supported && currentMIDIValue[currentBank][mapping.pedal][mapping.button] > 0;
     action* bestAction = hardware_best_action_for_control(i);
+    const bool active = hardware_action_active(bestAction, mappedActive);
     action* ledAction = hardware_best_led_action_for_control(i, active, controls[i].led);
     if (ledAction == nullptr) ledAction = bestAction;
+    const bool ledActive = hardware_action_active(ledAction, mappedActive);
     byte buttonLed = controls[i].led;
     pedalino::RgbColor fallbackColor = {0, 0, 0};
-    const bool fallbackActive = hardware_action_led_preview(ledAction, active, controls[i].led, buttonLed, fallbackColor) && active;
+    const bool fallbackActive = hardware_action_led_preview(ledAction, ledActive, controls[i].led, buttonLed, fallbackColor) && ledActive;
     if (ledAction == nullptr) buttonLed = hardware_button_led_for_action(bestAction, controls[i].led);
     const String fallback = String("Control ") + String(i + 1);
     json += F("{\"id\":");
