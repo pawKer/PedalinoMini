@@ -25,7 +25,7 @@
 20. `4c3c352` - Hardware test cached LED colors
 21. `43ef340` - Hardware test LED color fallback
 22. `67bfd30` - Hardware test LED preview cleanup
-23. `TBD` - Wi-Fi IP top-bar display
+23. `9cc79fa` - Wi-Fi IP top-bar display
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -185,7 +185,7 @@
 - Size note for `lilygo-t-display-s3`: cleanup build is `2,460,557` bytes flash / `107,624` bytes RAM, leaving `1,078,387` bytes free in the `3,538,944` byte OTA app slot.
 - Validation: `python -B -m unittest scripts.test_web_config_contracts.WebConfigContractTest.test_hardware_page_exposes_led_and_slot_visual_state`, `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python -B scripts\validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, and `pio run -e lilygo-t-display-s3`.
 
-### `TBD` - Wi-Fi IP top-bar display
+### `9cc79fa` - Wi-Fi IP top-bar display
 - Added a timed S3 top-bar label that shows the STA IP address for 5 seconds after Wi-Fi receives an IP, then returns to the normal bank label.
 - The existing Wi-Fi/profile/battery top-bar icons remain visible while the IP label is shown; AP mode and saved configuration are unchanged.
 - Compatibility note: no persisted config or Web UI schema changes.
