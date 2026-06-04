@@ -382,6 +382,14 @@ void test_unswap_rgb_order_restores_browser_rgb_from_hardware_cache()
   TEST_ASSERT_EQUAL_INT(browserColor.blue, restored.blue);
 }
 
+void test_resolve_hardware_sequence_led_handles_default_explicit_and_disabled_leds()
+{
+  TEST_ASSERT_EQUAL_INT(4, pedalino::resolve_hardware_sequence_led(255, 4, 10, 255));
+  TEST_ASSERT_EQUAL_INT(2, pedalino::resolve_hardware_sequence_led(2, 4, 10, 255));
+  TEST_ASSERT_EQUAL_INT(10, pedalino::resolve_hardware_sequence_led(10, 4, 10, 255));
+  TEST_ASSERT_EQUAL_INT(10, pedalino::resolve_hardware_sequence_led(250, 4, 10, 255));
+}
+
 void test_trim_page_decision_skips_prefix_or_finishes_chunk()
 {
   pedalino::TrimPageDecision decision = pedalino::trim_page_decision(0, 10, 0, 5, false);
@@ -587,6 +595,7 @@ int main(int argc, char** argv)
   RUN_TEST(test_slot_state_from_tags_returns_state_change_or_unchanged);
   RUN_TEST(test_swap_rgb_order_supports_all_orderings);
   RUN_TEST(test_unswap_rgb_order_restores_browser_rgb_from_hardware_cache);
+  RUN_TEST(test_resolve_hardware_sequence_led_handles_default_explicit_and_disabled_leds);
   RUN_TEST(test_trim_page_decision_skips_prefix_or_finishes_chunk);
   RUN_TEST(test_trim_page_decision_clears_when_start_is_after_current_content);
   RUN_TEST(test_trim_page_decision_lastcall_finishes_partial_page);

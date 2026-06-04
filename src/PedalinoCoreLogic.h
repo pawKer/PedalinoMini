@@ -277,6 +277,16 @@ inline RgbColor unswap_rgb_order(RgbColor color,
   return {0, 0, 0};
 }
 
+inline int resolve_hardware_sequence_led(int sequenceLed,
+                                         int fallbackLed,
+                                         int disabledLed,
+                                         int useDefaultLed)
+{
+  if (sequenceLed == useDefaultLed) return fallbackLed;
+  if (sequenceLed >= 0 && sequenceLed < disabledLed) return sequenceLed;
+  return disabledLed;
+}
+
 inline TrimPageDecision trim_page_decision(unsigned int skipped,
                                            unsigned int saved,
                                            unsigned int start,

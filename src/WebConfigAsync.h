@@ -196,6 +196,62 @@ bool hardware_led_active(byte led)
   return cached.red != 0 || cached.green != 0 || cached.blue != 0;
 }
 
+byte hardware_resolve_sequence_led(byte sequenceLed, byte fallbackLed)
+{
+  return (byte)pedalino::resolve_hardware_sequence_led(sequenceLed, fallbackLed, LEDS, 255);
+}
+
+byte hardware_sequence_first_led(byte sequenceIndex, byte fallbackLed)
+{
+  if (sequenceIndex >= SEQUENCES) return fallbackLed;
+
+  byte firstStepLed = LEDS;
+  for (byte step = 0; step < STEPS; step++) {
+    if (sequences[sequenceIndex][step].midiMessage == PED_EMPTY ||
+        sequences[sequenceIndex][step].midiMessage == PED_ACTION_WLED) {
+      continue;
+    }
+
+    const byte resolvedLed = hardware_resolve_sequence_led(sequences[sequenceIndex][step].led, fallbackLed);
+    if (resolvedLed >= LEDS) continue;
+    if (sequences[sequenceIndex][step].midiMessage == PED_ACTION_LED_COLOR) return resolvedLed;
+    if (firstStepLed >= LEDS) firstStepLed = resolvedLed;
+  }
+
+  return firstStepLed < LEDS ? firstStepLed : fallbackLed;
+}
+
+byte hardware_sequence_step_led(byte sequenceIndex, byte stepIndex, byte fallbackLed)
+{
+  if (sequenceIndex >= SEQUENCES || stepIndex >= STEPS) return fallbackLed;
+  if (sequences[sequenceIndex][stepIndex].midiMessage == PED_EMPTY ||
+      sequences[sequenceIndex][stepIndex].midiMessage == PED_ACTION_WLED) {
+    return fallbackLed;
+  }
+
+  return hardware_resolve_sequence_led(sequences[sequenceIndex][stepIndex].led, fallbackLed);
+}
+
+byte hardware_button_led_for_action(action* act, byte fallbackLed)
+{
+  if (act == nullptr) return fallbackLed;
+
+  const byte actionLed = led_control(act->control, act->led);
+  switch (act->midiMessage) {
+    case PED_SEQUENCE:
+      if (act->midiChannel < 1 || act->midiChannel > SEQUENCES) return actionLed;
+      return hardware_sequence_first_led(act->midiChannel - 1, actionLed);
+
+    case PED_SEQUENCE_STEP_BY_STEP_FWD:
+    case PED_SEQUENCE_STEP_BY_STEP_REV:
+      if (act->midiChannel < 1 || act->midiChannel > SEQUENCES) return actionLed;
+      return hardware_sequence_step_led(act->midiChannel - 1, constrain(act->midiCode, 0, STEPS - 1), actionLed);
+
+    default:
+      return actionLed;
+  }
+}
+
 String hardware_bank_label()
 {
   String label = banknames[currentBank][0] == 0
@@ -321,8 +377,7 @@ String hardware_state_json()
     const pedalino::HardwareControlMapping mapping = controller_virtual_control_mapping(i);
     const bool active = mapping.supported && currentMIDIValue[currentBank][mapping.pedal][mapping.button] > 0;
     action* bestAction = hardware_best_action_for_control(i);
-    byte buttonLed = controls[i].led;
-    if (bestAction != nullptr) buttonLed = led_control(bestAction->control, bestAction->led);
+    byte buttonLed = hardware_button_led_for_action(bestAction, controls[i].led);
     const String fallback = String("Control ") + String(i + 1);
     json += F("{\"id\":");
     json += (i + 1);
@@ -3806,7 +3861,7 @@ void get_hardware_page(unsigned int start, unsigned int len) {
   page += F("const bank=document.getElementById('hardwareBank');if(bank)bank.textContent=state.bankName||('Bank '+state.bank);");
   page += F("const select=document.getElementById('hardwareBankSelect');if(select&&state.bank!==undefined)select.value=String(state.bank);");
   page += F("(state.buttons||[]).forEach(function(b){const btn=document.querySelector('.hardwareButton[data-control=\"'+b.id+'\"]');if(!btn)return;btn.disabled=!b.enabled;btn.title=b.reason||'';const label=btn.querySelector('.hardwareButtonLabel');if(label)label.textContent=b.label||('Control '+b.id);const led=btn.querySelector('.hardwareLed');if(led){led.style.background=b.ledColor||'#000';led.style.opacity=b.ledActive?'1':'0.35';led.title=b.led?('LED '+b.led):'No LED';}});");
-  page += F("(state.slots||[]).forEach(function(s){const slot=document.getElementById('hardwareSlot'+s.id);if(!slot)return;slot.textContent=s.label||('S'+s.id);slot.style.borderColor=s.borderColor||'#666';slot.style.background=s.active?'#1b1f24':'#111';slot.style.boxShadow=s.active?('0 0 0 2px '+(s.borderColor||'#666')+' inset'):'none';});");
+  page += F("(state.slots||[]).forEach(function(s){const slot=document.getElementById('hardwareSlot'+s.id);if(!slot)return;slot.textContent=s.label||('S'+s.id);slot.style.borderColor=s.borderColor||'#666';slot.style.background=s.active?'#fff':'#111';slot.style.color=s.active?'#000':'#f8f9fa';slot.style.boxShadow='none';});");
   page += F("}");
   page += F("function hardwareConnect(){const protocol=location.protocol==='https:'?'wss://':'ws://';hardwareSocket=new WebSocket(protocol+location.host+'/ws');");
   page += F("hardwareSocket.onopen=function(){hardwareSetStatus('Connected','bg-success');hardwareSend('hardware-state');};");
