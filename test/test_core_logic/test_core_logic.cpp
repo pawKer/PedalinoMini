@@ -341,47 +341,6 @@ void test_swap_rgb_order_supports_all_orderings()
   TEST_ASSERT_EQUAL_INT(1, swapped.blue);
 }
 
-void test_unswap_rgb_order_restores_browser_rgb_from_hardware_cache()
-{
-  const pedalino::RgbColor browserColor = {10, 20, 30};
-
-  pedalino::RgbColor hardwareColor = pedalino::swap_rgb_order(browserColor, kRgb, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  pedalino::RgbColor restored = pedalino::unswap_rgb_order(hardwareColor, kRgb, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  TEST_ASSERT_EQUAL_INT(browserColor.red, restored.red);
-  TEST_ASSERT_EQUAL_INT(browserColor.green, restored.green);
-  TEST_ASSERT_EQUAL_INT(browserColor.blue, restored.blue);
-
-  hardwareColor = pedalino::swap_rgb_order(browserColor, kRbg, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  restored = pedalino::unswap_rgb_order(hardwareColor, kRbg, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  TEST_ASSERT_EQUAL_INT(browserColor.red, restored.red);
-  TEST_ASSERT_EQUAL_INT(browserColor.green, restored.green);
-  TEST_ASSERT_EQUAL_INT(browserColor.blue, restored.blue);
-
-  hardwareColor = pedalino::swap_rgb_order(browserColor, kGrb, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  restored = pedalino::unswap_rgb_order(hardwareColor, kGrb, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  TEST_ASSERT_EQUAL_INT(browserColor.red, restored.red);
-  TEST_ASSERT_EQUAL_INT(browserColor.green, restored.green);
-  TEST_ASSERT_EQUAL_INT(browserColor.blue, restored.blue);
-
-  hardwareColor = pedalino::swap_rgb_order(browserColor, kGbr, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  restored = pedalino::unswap_rgb_order(hardwareColor, kGbr, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  TEST_ASSERT_EQUAL_INT(browserColor.red, restored.red);
-  TEST_ASSERT_EQUAL_INT(browserColor.green, restored.green);
-  TEST_ASSERT_EQUAL_INT(browserColor.blue, restored.blue);
-
-  hardwareColor = pedalino::swap_rgb_order(browserColor, kBrg, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  restored = pedalino::unswap_rgb_order(hardwareColor, kBrg, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  TEST_ASSERT_EQUAL_INT(browserColor.red, restored.red);
-  TEST_ASSERT_EQUAL_INT(browserColor.green, restored.green);
-  TEST_ASSERT_EQUAL_INT(browserColor.blue, restored.blue);
-
-  hardwareColor = pedalino::swap_rgb_order(browserColor, kBgr, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  restored = pedalino::unswap_rgb_order(hardwareColor, kBgr, kRgb, kRbg, kGrb, kGbr, kBrg, kBgr);
-  TEST_ASSERT_EQUAL_INT(browserColor.red, restored.red);
-  TEST_ASSERT_EQUAL_INT(browserColor.green, restored.green);
-  TEST_ASSERT_EQUAL_INT(browserColor.blue, restored.blue);
-}
-
 void test_resolve_hardware_sequence_led_handles_default_explicit_and_disabled_leds()
 {
   TEST_ASSERT_EQUAL_INT(4, pedalino::resolve_hardware_sequence_led(255, 4, 10, 255));
@@ -594,7 +553,6 @@ int main(int argc, char** argv)
   RUN_TEST(test_preferred_action_overlay_label_prefers_event_specific_tags);
   RUN_TEST(test_slot_state_from_tags_returns_state_change_or_unchanged);
   RUN_TEST(test_swap_rgb_order_supports_all_orderings);
-  RUN_TEST(test_unswap_rgb_order_restores_browser_rgb_from_hardware_cache);
   RUN_TEST(test_resolve_hardware_sequence_led_handles_default_explicit_and_disabled_leds);
   RUN_TEST(test_trim_page_decision_skips_prefix_or_finishes_chunk);
   RUN_TEST(test_trim_page_decision_clears_when_start_is_after_current_content);

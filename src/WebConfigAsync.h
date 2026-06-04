@@ -168,23 +168,14 @@ String hardware_led_css_color(byte led)
   if (led >= LEDS) return F("#000000");
 
   const CRGB& cached = lastLedColor[currentBank][led];
-  const pedalino::RgbColor cssColor =
-      pedalino::unswap_rgb_order({cached.red, cached.green, cached.blue},
-                                 rgbOrder,
-                                 RGB,
-                                 RBG,
-                                 GRB,
-                                 GBR,
-                                 BRG,
-                                 BGR);
 
   char colorString[8];
   snprintf(colorString,
            sizeof(colorString),
            "#%02x%02x%02x",
-           (unsigned int)cssColor.red,
-           (unsigned int)cssColor.green,
-           (unsigned int)cssColor.blue);
+           (unsigned int)cached.red,
+           (unsigned int)cached.green,
+           (unsigned int)cached.blue);
   return String(colorString);
 }
 
