@@ -23,6 +23,7 @@
 18. `6e864a7` - Hardware test visual state preview
 19. `479d892` - Hardware test sequence LEDs and slot inversion
 20. `4c3c352` - Hardware test cached LED colors
+21. `43ef340` - Hardware test LED color fallback
 
 ### `f094f50` - Display state model + `Set Slot State` action
 - Added new action type `PED_ACTION_SET_SLOT_STATE` and string mapping in config serialization/deserialization.
@@ -166,10 +167,19 @@
 - Size note for `lilygo-t-display-s3`: final branch build is `2,458,629` bytes flash / `107,600` bytes RAM, leaving `1,080,315` bytes free in the `3,538,944` byte OTA app slot.
 - Validation: `python -B -m unittest scripts.test_web_config_contracts.WebConfigContractTest.test_hardware_page_exposes_led_and_slot_visual_state`, `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python -B scripts\validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, `pio run -e lilygo-t-display-s3`, and `pio run -e lilygo-t-display-s3 -t buildfs`.
 
+### `43ef340` - Hardware test LED color fallback
+- Fixed `/hardware` LED dots that showed as black when the live `lastLedColor` cache had not been populated for the selected button action.
+- The hardware page now keeps live cached LED color authoritative when present, then falls back to the configured action or sequence-step color for the selected button LED.
+- Added a separate LED-action scanner so descriptive label/slot actions no longer hide the color from a different action on the same control.
+- Kept `ledActive` separate from `ledColor`: inactive LEDs can still show their configured color dimmed, while active/cached LEDs render at full opacity.
+- Compatibility note: saved configuration, physical LED output, controller dispatch, MIDI output, and sequence execution are unchanged; this only changes `/hardware` JSON/rendering behavior.
+- Size note for `lilygo-t-display-s3`: final branch build is `2,459,969` bytes flash / `107,600` bytes RAM, leaving `1,078,975` bytes free in the `3,538,944` byte OTA app slot.
+- Validation: `python -B -m unittest scripts.test_web_config_contracts.WebConfigContractTest.test_hardware_page_exposes_led_and_slot_visual_state`, `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts`, `python -B scripts\validate_config_surfaces.py`, `$env:TMPDIR = "C:\tmp"; pio test -e native`, `pio run -e lilygo-t-display-s3`, and `pio run -e lilygo-t-display-s3 -t buildfs`.
+
 
 ## Validation
-- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-04, Hardware test cached LED colors; RAM `107,600` bytes, flash `2,458,629` bytes, `1,080,315` bytes free in the OTA app slot).
-- Latest filesystem build: `pio run -e lilygo-t-display-s3 -t buildfs` (success, 2026-06-04, Hardware test cached LED colors).
-- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (32 Unity tests passed, 2026-06-04).
+- Latest verified build: `pio run -e lilygo-t-display-s3` (success, 2026-06-04, Hardware test LED color fallback; RAM `107,600` bytes, flash `2,459,969` bytes, `1,078,975` bytes free in the OTA app slot).
+- Latest filesystem build: `pio run -e lilygo-t-display-s3 -t buildfs` (success, 2026-06-04, Hardware test LED color fallback).
+- Latest native test run: `$env:TMPDIR = "C:\tmp"; pio test -e native` (34 Unity tests passed, 2026-06-04).
 - Latest local Python validation: `python -B -m unittest scripts.test_validate_config_surfaces scripts.test_web_config_contracts` (26 tests passed, 2026-06-04) and `python -B scripts\validate_config_surfaces.py` (success, 2026-06-04).
 - Latest device check: existing grouped incoming MIDI rules migrated into `Global` bank `0` and no longer caused a reboot loop on LilyGO T-Display S3.
